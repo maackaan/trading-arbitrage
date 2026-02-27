@@ -22,11 +22,21 @@ def _parse_metadata(raw: str | None) -> dict:
     return value if isinstance(value, dict) else {}
 
 
+def _is_simulated(metadata: dict) -> bool:
+    if bool(metadata.get("is_simulated")):
+        return True
+    mode = str(metadata.get("mode") or "").strip().lower()
+    if mode in {"mock", "csgoskins_fallback"}:
+        return True
+    return False
+
+
 @router.get("/deals", response_model=list[DealItem])
 async def get_deals(
     market: str | None = Query(default=None),
     min_discount: float = Query(default=12.0, ge=0.0),
     since_hours: int = Query(default=24, ge=1, le=168),
+    include_simulated: bool = Query(default=False),
     limit: int = Query(default=100, ge=1, le=500),
     session: AsyncSession = Depends(get_session),
 ) -> list[DealItem]:
@@ -36,6 +46,7 @@ async def get_deals(
         min_discount_pct=min_discount,
         since_hours=since_hours,
         limit=limit,
+        include_simulated=include_simulated,
     )
 
     payload: list[DealItem] = []
@@ -56,6 +67,7 @@ async def get_deals(
                 reference_price=metadata.get("reference_market_price"),
                 image_url=metadata.get("image_url"),
                 price_source=metadata.get("price_source"),
+                is_simulated=_is_simulated(metadata),
                 extreme_underpricing=row.extreme_underpricing,
             )
         )

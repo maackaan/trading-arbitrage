@@ -78,6 +78,7 @@ export type DealItem = {
   reference_price: number | null
   image_url: string | null
   price_source: string | null
+  is_simulated: boolean
   extreme_underpricing: boolean
 }
 
@@ -94,6 +95,7 @@ export type ListingItem = {
   reference_price: number | null
   image_url: string | null
   price_source: string | null
+  is_simulated: boolean
   extreme_underpricing: boolean
 }
 

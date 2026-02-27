@@ -16,4 +16,5 @@ async def health(container: AppContainer = Depends(get_container)) -> dict:
         "status": "ok",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "use_mock_providers": container.settings.use_mock_providers,
+        "mock_listings_enabled": container.settings.mock_listings_enabled,
     }

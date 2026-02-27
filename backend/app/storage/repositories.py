@@ -27,6 +27,15 @@ def _parse_metadata(raw: str | None) -> dict:
     return value if isinstance(value, dict) else {}
 
 
+def _is_simulated(metadata: dict) -> bool:
+    if bool(metadata.get("is_simulated")):
+        return True
+    mode = str(metadata.get("mode") or "").strip().lower()
+    if mode in {"mock", "csgoskins_fallback"}:
+        return True
+    return False
+
+
 class SkinRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -321,6 +330,7 @@ class ListingRepository:
         market: str | None = None,
         limit: int = 100,
         since_hours: int = 24,
+        include_simulated: bool = False,
     ) -> list[ListingItem]:
         since = datetime.now(timezone.utc) - timedelta(hours=since_hours)
         conditions = [ListingTable.listed_at >= since]
@@ -331,13 +341,15 @@ class ListingRepository:
             select(ListingTable)
             .where(and_(*conditions))
             .order_by(desc(ListingTable.listed_at), desc(ListingTable.detected_at))
-            .limit(limit)
+            .limit(max(limit * 6, limit))
         )
 
-        rows = (await self.session.scalars(stmt)).all()
+        rows = list((await self.session.scalars(stmt)).all())
         items: list[ListingItem] = []
         for row in rows:
             metadata = _parse_metadata(row.metadata_json)
+            if not include_simulated and _is_simulated(metadata):
+                continue
             items.append(
                 ListingItem(
                     listing_id=row.id,
@@ -352,9 +364,12 @@ class ListingRepository:
                     reference_price=metadata.get("reference_market_price"),
                     image_url=metadata.get("image_url"),
                     price_source=metadata.get("price_source"),
+                    is_simulated=_is_simulated(metadata),
                     extreme_underpricing=row.extreme_underpricing,
                 )
             )
+            if len(items) >= limit:
+                break
         return items
 
     async def get_deals(
@@ -364,6 +379,7 @@ class ListingRepository:
         min_discount_pct: float = 0.0,
         since_hours: int = 24,
         limit: int = 100,
+        include_simulated: bool = False,
     ) -> list[ListingTable]:
         since = datetime.now(timezone.utc) - timedelta(hours=since_hours)
         conditions = [ListingTable.is_deal.is_(True), ListingTable.listed_at >= since]
@@ -389,9 +405,20 @@ class ListingRepository:
                 ),
                 desc(ListingTable.listed_at),
             )
-            .limit(limit)
+            .limit(max(limit * 6, limit))
         )
-        return list((await self.session.scalars(stmt)).all())
+        rows = list((await self.session.scalars(stmt)).all())
+        if include_simulated:
+            return rows[:limit]
+        filtered: list[ListingTable] = []
+        for row in rows:
+            metadata = _parse_metadata(row.metadata_json)
+            if _is_simulated(metadata):
+                continue
+            filtered.append(row)
+            if len(filtered) >= limit:
+                break
+        return filtered
 
     async def list_available_markets(self) -> list[str]:
         stmt = select(ListingTable.market).distinct().order_by(ListingTable.market.asc())

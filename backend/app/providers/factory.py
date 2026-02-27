@@ -7,6 +7,7 @@ from app.providers.buff_market import BuffMarketProvider
 from app.providers.csgofloat import CSGOFloatProvider
 from app.providers.csmoney import CSMoneyProvider
 from app.providers.dmarket import DMarketProvider
+from app.providers.common import StubOrMockProvider
 from app.providers.mock import MockMarketEngine
 from app.providers.skinbaron import SkinBaronProvider
 from app.providers.skinport import SkinportProvider
@@ -31,7 +32,7 @@ def build_providers(settings: Settings) -> list[BaseProvider]:
         snapshot_ttl_seconds=settings.csgoskins_price_ttl_seconds,
     )
 
-    return [
+    providers = [
         SteamProvider(
             use_mock=use_mock,
             mock_engine=mock_engine,
@@ -87,3 +88,9 @@ def build_providers(settings: Settings) -> list[BaseProvider]:
             csgoskins_price_service=csgoskins_price_service,
         ),
     ]
+
+    for provider in providers:
+        if isinstance(provider, StubOrMockProvider):
+            provider.mock_listings_enabled = settings.mock_listings_enabled
+
+    return providers

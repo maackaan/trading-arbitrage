@@ -21,11 +21,13 @@ class StubOrMockProvider(BaseProvider):
         mock_engine: MockMarketEngine,
         rate_limit_seconds: float,
         csgoskins_price_service: CSGOSkinsPriceService | None = None,
+        mock_listings_enabled: bool = False,
     ) -> None:
         super().__init__(use_mock=use_mock, rate_limit_seconds=rate_limit_seconds)
         self.name = market_name
         self.mock_engine = mock_engine
         self.csgoskins_price_service = csgoskins_price_service
+        self.mock_listings_enabled = mock_listings_enabled
 
     async def fetch_prices(self, skins: Sequence[SkinTable]) -> list[ProviderPrice]:
         if self.use_mock:
@@ -43,8 +45,16 @@ class StubOrMockProvider(BaseProvider):
         if not self.supports_listings:
             return []
         if self.use_mock:
+            if not self.mock_listings_enabled:
+                return []
             listings = self.mock_engine.generate_listings(self.name, skins)
             await self._override_listing_rows(listings)
+            for listing in listings:
+                listing.metadata = {
+                    **listing.metadata,
+                    "is_simulated": True,
+                    "simulation_reason": "mock_provider_no_official_listing_api",
+                }
             return listings
         # Placeholder for official API integration. Avoids unsupported scraping.
         return []

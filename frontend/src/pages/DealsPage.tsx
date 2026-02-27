@@ -8,6 +8,7 @@ export function DealsPage() {
   const [market, setMarket] = useState('csmoney')
   const [minDiscount, setMinDiscount] = useState(15)
   const [sinceHours, setSinceHours] = useState(24)
+  const [includeSimulated, setIncludeSimulated] = useState(false)
   const [deals, setDeals] = useState<DealItem[]>([])
   const [loading, setLoading] = useState(false)
   const { subscribe } = useRealtime()
@@ -15,12 +16,17 @@ export function DealsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const rows = await fetchDeals({ market: market || undefined, minDiscount, sinceHours })
+      const rows = await fetchDeals({
+        market: market || undefined,
+        minDiscount,
+        sinceHours,
+        includeSimulated,
+      })
       setDeals(rows)
     } finally {
       setLoading(false)
     }
-  }, [market, minDiscount, sinceHours])
+  }, [market, minDiscount, sinceHours, includeSimulated])
 
   useEffect(() => {
     void load()
@@ -40,7 +46,8 @@ export function DealsPage() {
     <section className="page">
       <h1>Deals feed</h1>
       <p className="muted">
-        Underpriced listings versus Buff163 and rolling market mean. Rows now prefer csgoskins-backed market prices when available.
+        Underpriced listings versus Buff163 and rolling market mean.
+        {includeSimulated ? ' Includes simulated fallback listings.' : ' Showing only non-simulated listings.'}
       </p>
       <div className="filters">
         <label>
@@ -68,6 +75,10 @@ export function DealsPage() {
             max={168}
           />
         </label>
+        <label className="checkbox">
+          <input type="checkbox" checked={includeSimulated} onChange={(e) => setIncludeSimulated(e.target.checked)} />
+          Include simulated
+        </label>
         <button className="button" onClick={() => void load()}>
           Apply
         </button>
@@ -86,6 +97,7 @@ export function DealsPage() {
                 <div className="muted">
                   Listed: {new Date(deal.listed_at).toLocaleString()}
                   {deal.price_source ? ` | Source: ${deal.price_source}` : ''}
+                  {deal.is_simulated ? ' | Simulated' : ''}
                 </div>
                 <div className="muted">
                   Discount vs Buff163:{' '}
@@ -105,6 +117,11 @@ export function DealsPage() {
           </li>
         ))}
       </ul>
+      {!loading && deals.length === 0 ? (
+        <p className="muted">
+          No deals found for this filter. If you expected mock rows, enable “Include simulated”.
+        </p>
+      ) : null}
     </section>
   )
 }
