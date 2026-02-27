@@ -69,6 +69,7 @@ def build_providers(settings: Settings) -> list[BaseProvider]:
             rate_limit_seconds=_rate(settings, "csgofloat"),
             csgoskins_price_service=csgoskins_price_service,
             api_key=settings.csgofloat_api_key,
+            session_cookie=settings.csfloat_session_cookie,
             listings_api_url=settings.csfloat_listings_api_url,
             timeout_seconds=settings.csfloat_api_timeout_seconds,
             listings_sort=settings.csfloat_listings_sort,

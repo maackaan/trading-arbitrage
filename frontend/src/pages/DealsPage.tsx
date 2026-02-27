@@ -12,6 +12,7 @@ export function DealsPage() {
   const [loading, setLoading] = useState(false)
   const [appliedFilters, setAppliedFilters] = useState({ market: 'csgofloat', minDiscount: 5, sinceHours: 24 })
   const [csfloatConfigured, setCsfloatConfigured] = useState(true)
+  const [csfloatError, setCsfloatError] = useState<string | null>(null)
   const { subscribe } = useRealtime()
 
   const load = useCallback(async (filters: { market: string; minDiscount: number; sinceHours: number }) => {
@@ -44,8 +45,14 @@ export function DealsPage() {
 
   useEffect(() => {
     void fetchHealth()
-      .then((value) => setCsfloatConfigured(value.csfloat_listings_api_configured))
-      .catch(() => setCsfloatConfigured(false))
+      .then((value) => {
+        setCsfloatConfigured(value.csfloat_listings_api_configured)
+        setCsfloatError(value.csfloat_last_error)
+      })
+      .catch(() => {
+        setCsfloatConfigured(false)
+        setCsfloatError(null)
+      })
   }, [])
 
   return (
@@ -127,6 +134,9 @@ export function DealsPage() {
           No real deals found for this filter.
           {appliedFilters.market.trim().toLowerCase() === 'csgofloat' && !csfloatConfigured
             ? ' CSFloat listings API is not configured, so no real CSFloat listings can be shown.'
+            : ''}
+          {appliedFilters.market.trim().toLowerCase() === 'csgofloat' && csfloatError
+            ? ` CSFloat error: ${csfloatError}`
             : ''}
         </p>
       ) : null}

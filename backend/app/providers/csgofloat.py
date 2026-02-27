@@ -5,6 +5,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from typing import Any, Sequence
+from urllib.error import HTTPError
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
@@ -30,6 +31,7 @@ class CSGOFloatProvider(StubOrMockProvider):
         rate_limit_seconds: float,
         csgoskins_price_service: CSGOSkinsPriceService | None = None,
         api_key: str = "",
+        session_cookie: str = "",
         listings_api_url: str = _DEFAULT_LISTINGS_URL,
         timeout_seconds: int = 10,
         listings_sort: str = "most_recent",
@@ -43,14 +45,20 @@ class CSGOFloatProvider(StubOrMockProvider):
             csgoskins_price_service=csgoskins_price_service,
         )
         self.api_key = api_key.strip()
+        self.session_cookie = session_cookie.strip()
         self.listings_api_url = (listings_api_url or _DEFAULT_LISTINGS_URL).strip()
         self.timeout_seconds = max(timeout_seconds, 3)
         self.listings_sort = (listings_sort or "most_recent").strip()
         self.listings_limit = min(max(int(listings_limit), 1), 50)
+        self.last_error: str | None = None
 
     @property
     def listings_api_configured(self) -> bool:
         return bool(self.listings_api_url)
+
+    @property
+    def auth_configured(self) -> bool:
+        return bool(self.api_key or self.session_cookie)
 
     async def fetch_new_listings(
         self,
@@ -62,12 +70,28 @@ class CSGOFloatProvider(StubOrMockProvider):
 
         if not self.listings_api_configured:
             logger.info("CSFloat listings API is not configured.")
+            self.last_error = "CSFloat listings API URL is not configured."
             return []
 
         try:
             request_url = self._build_request_url()
             payload = await asyncio.to_thread(self._fetch_json, request_url)
+            self.last_error = None
+        except HTTPError as exc:
+            body = ""
+            try:
+                body = exc.read().decode("utf-8", "ignore")
+            except Exception:
+                body = ""
+            self.last_error = f"HTTP {exc.code}: {body[:180] or 'request failed'}"
+            if exc.code == 403 and not self.auth_configured:
+                self.last_error = (
+                    "HTTP 403: CSFloat requires login. Set CSGOFLOAT_API_KEY or CSFLOAT_SESSION_COOKIE."
+                )
+            logger.warning("CSFloat listings request failed: %s", self.last_error)
+            return []
         except Exception:
+            self.last_error = "Request failed unexpectedly."
             logger.warning("CSFloat listings request failed", exc_info=True)
             return []
 
@@ -132,7 +156,10 @@ class CSGOFloatProvider(StubOrMockProvider):
             "User-Agent": "Mozilla/5.0",
         }
         if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
+            # CSFloat docs expect raw API key value in Authorization header.
+            headers["Authorization"] = self.api_key
+        if self.session_cookie:
+            headers["Cookie"] = self.session_cookie
         request = Request(url=url, method="GET", headers=headers)
         with urlopen(request, timeout=self.timeout_seconds) as response:
             return json.loads(response.read().decode("utf-8"))

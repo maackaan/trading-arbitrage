@@ -24,6 +24,8 @@ async def health(container: AppContainer = Depends(get_container)) -> dict:
         "csfloat_listings_api_configured": bool(
             csfloat_provider and csfloat_provider.listings_api_configured
         ),
+        "csfloat_auth_configured": bool(csfloat_provider and csfloat_provider.auth_configured),
+        "csfloat_last_error": csfloat_provider.last_error if csfloat_provider else None,
         "csmoney_listings_api_configured": bool(
             csmoney_provider and csmoney_provider.listings_api_configured
         ),

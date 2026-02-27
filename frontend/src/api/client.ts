@@ -13,6 +13,8 @@ export async function fetchHealth(): Promise<{
   use_mock_providers: boolean
   mock_listings_enabled: boolean
   csfloat_listings_api_configured: boolean
+  csfloat_auth_configured: boolean
+  csfloat_last_error: string | null
   csmoney_listings_api_configured: boolean
 }> {
   return getJson('/api/health')

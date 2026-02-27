@@ -17,7 +17,8 @@ function App() {
       .then((data) => {
         const mode = data.use_mock_providers ? 'mock mode' : 'real mode'
         const csfloat = data.csfloat_listings_api_configured ? 'csfloat:on' : 'csfloat:off'
-        setHealth(`${data.status} (${mode}, ${csfloat})`)
+        const auth = data.csfloat_auth_configured ? 'auth:on' : 'auth:off'
+        setHealth(`${data.status} (${mode}, ${csfloat}, ${auth})`)
       })
       .catch(() => setHealth('backend unavailable'))
   }, [])

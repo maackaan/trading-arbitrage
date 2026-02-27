@@ -85,6 +85,7 @@ Real CSFloat listings/deals are supported via official public API:
 
 - `CSFLOAT_LISTINGS_API_URL` (default: `https://csfloat.com/api/v1/listings`)
 - `CSGOFLOAT_API_KEY` (optional)
+- `CSFLOAT_SESSION_COOKIE` (optional, needed if CSFloat returns login-required 403)
 - `CSFLOAT_API_TIMEOUT_SECONDS` (default: `10`)
 - `CSFLOAT_LISTINGS_SORT` (default: `most_recent`)
 - `CSFLOAT_LISTINGS_LIMIT` (default: `50`)
