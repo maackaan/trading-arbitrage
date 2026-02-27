@@ -6,9 +6,9 @@ import type { DealItem, RealtimeEvent } from '../types'
 
 export function DealsPage() {
   const [market, setMarket] = useState('csmoney')
-  const [minDiscount, setMinDiscount] = useState(15)
+  const [minDiscount, setMinDiscount] = useState(5)
   const [sinceHours, setSinceHours] = useState(24)
-  const [includeSimulated, setIncludeSimulated] = useState(false)
+  const [includeSimulated, setIncludeSimulated] = useState(true)
   const [deals, setDeals] = useState<DealItem[]>([])
   const [loading, setLoading] = useState(false)
   const { subscribe } = useRealtime()

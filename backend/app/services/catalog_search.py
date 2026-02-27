@@ -22,6 +22,13 @@ WEAR_FROM_SLUG = {
     "battle-scarred": "Battle-Scarred",
     "vanilla": "Vanilla",
 }
+DEFAULT_WEAR_OPTIONS = [
+    "Factory New",
+    "Minimal Wear",
+    "Field-Tested",
+    "Well-Worn",
+    "Battle-Scarred",
+]
 
 
 @dataclass
@@ -92,11 +99,15 @@ class CatalogSearchService:
         try:
             html = await asyncio.to_thread(self._get_text, item_url)
             wears = extract_wears_from_html(html)
+            if not wears:
+                wears = infer_default_wears(item_url)
             self._wear_cache[item_url] = (time.time(), wears)
             return wears
         except Exception:
-            logger.exception("Failed loading wear options from %s", item_url)
-            return []
+            wears = infer_default_wears(item_url)
+            self._wear_cache[item_url] = (time.time(), wears)
+            logger.warning("Falling back to inferred wear options for %s", item_url)
+            return wears
 
     def _post_json(self, url: str, payload: dict[str, Any]) -> dict[str, Any]:
         body = json.dumps(payload).encode("utf-8")
@@ -137,6 +148,13 @@ def extract_wears_from_html(html: str) -> list[str]:
         found.add("Vanilla")
 
     return sorted(found, key=lambda wear: WEAR_ORDER.get(wear, 99))
+
+
+def infer_default_wears(item_url: str) -> list[str]:
+    lowered = item_url.lower()
+    if lowered.endswith("-vanilla") or "/vanilla" in lowered:
+        return ["Vanilla"]
+    return list(DEFAULT_WEAR_OPTIONS)
 
 
 def build_display_name(title: str, category: str | None) -> str:

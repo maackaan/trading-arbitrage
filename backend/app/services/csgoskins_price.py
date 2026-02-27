@@ -7,6 +7,7 @@ import re
 import time
 from dataclasses import dataclass
 from typing import Any
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from app.services.catalog_search import build_display_name
@@ -89,6 +90,7 @@ class CSGOSkinsPriceService:
         self._resolve_cache: dict[str, tuple[float, ResolvedItem | None]] = {}
         self._snapshot_cache: dict[str, tuple[float, SkinMarketSnapshot | None]] = {}
         self._skin_locks: dict[str, asyncio.Lock] = {}
+        self._blocked_until = 0.0
 
     @property
     def supported_markets(self) -> set[str]:
@@ -122,6 +124,8 @@ class CSGOSkinsPriceService:
     async def get_skin_snapshot(self, skin_name: str) -> SkinMarketSnapshot | None:
         if not self.enabled or not skin_name.strip():
             return None
+        if self._is_temporarily_blocked():
+            return None
 
         cache_key = skin_name.strip().lower()
         cached = self._cache_get(self._snapshot_cache, cache_key)
@@ -136,8 +140,14 @@ class CSGOSkinsPriceService:
 
             try:
                 snapshot = await self._load_skin_snapshot_uncached(skin_name)
-            except Exception:
-                logger.exception("Failed loading csgoskins snapshot for %s", skin_name)
+                self._blocked_until = 0.0
+            except HTTPError as exc:
+                if exc.code in (403, 429):
+                    self._block_temporarily(exc.code)
+                logger.debug("Failed loading csgoskins snapshot for %s (HTTP %s)", skin_name, exc.code)
+                snapshot = None
+            except Exception as exc:
+                logger.debug("Failed loading csgoskins snapshot for %s (%s)", skin_name, type(exc).__name__)
                 snapshot = None
             self._cache_set(
                 self._snapshot_cache,
@@ -146,6 +156,18 @@ class CSGOSkinsPriceService:
                 self.snapshot_ttl_seconds if snapshot else self.missing_ttl_seconds,
             )
             return snapshot
+
+    def _is_temporarily_blocked(self) -> bool:
+        return self._blocked_until > time.time()
+
+    def _block_temporarily(self, code: int) -> None:
+        until = time.time() + 300
+        if until > self._blocked_until:
+            self._blocked_until = until
+            logger.warning(
+                "Temporarily disabling csgoskins item-page lookups for 300s after HTTP %s",
+                code,
+            )
 
     async def _load_skin_snapshot_uncached(self, skin_name: str) -> SkinMarketSnapshot | None:
         base_name, wear = split_wear_suffix(skin_name)

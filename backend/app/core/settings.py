@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./app.db"
 
     use_mock_providers: bool = True
-    mock_listings_enabled: bool = False
+    mock_listings_enabled: bool = True
     mock_seed: int = 42
 
     refresh_interval_seconds: int = 10

@@ -7,7 +7,7 @@ import type { ListingItem, RealtimeEvent } from '../types'
 export function NewListingsPage() {
   const [market, setMarket] = useState('csmoney')
   const [sinceHours, setSinceHours] = useState(6)
-  const [includeSimulated, setIncludeSimulated] = useState(false)
+  const [includeSimulated, setIncludeSimulated] = useState(true)
   const [items, setItems] = useState<ListingItem[]>([])
   const [loading, setLoading] = useState(false)
   const { subscribe } = useRealtime()

@@ -61,8 +61,8 @@ pytest
 ## Mock vs Real Providers
 
 By default, `USE_MOCK_PROVIDERS=true`, so all markets generate realistic sample prices without API keys.
-Mock listings are disabled by default (`MOCK_LISTINGS_ENABLED=false`) to avoid mixing simulated deals with real feeds.
-You can explicitly enable simulated listings for local demo/testing.
+Mock listings are enabled by default (`MOCK_LISTINGS_ENABLED=true`) in mock mode so Deals/New Listings pages have data.
+Simulated rows are explicitly labeled in the UI and can be filtered out if you want real-only feeds.
 When `CSGOSKINS_PRICE_FALLBACK_ENABLED=true` (default), mock rows are automatically corrected with live
 `csgoskins.gg` market prices/images when data is available.
 

@@ -63,7 +63,6 @@ async def lifespan(app: FastAPI):
         scheduler=scheduler,
     )
 
-    await aggregation.refresh_once()
     await scheduler.start()
 
     try:
