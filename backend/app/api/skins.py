@@ -20,6 +20,18 @@ def _parse_range(value: str | None, default_hours: int = 72) -> timedelta:
     if not value:
         return timedelta(hours=default_hours)
 
+    value = value.strip().lower()
+    try:
+        if value.endswith("m"):
+            return timedelta(minutes=int(value[:-1]))
+        if value.endswith("h"):
+            return timedelta(hours=int(value[:-1]))
+        if value.endswith("d"):
+            return timedelta(days=int(value[:-1]))
+        return timedelta(hours=int(value))
+    except ValueError:
+        return timedelta(hours=default_hours)
+
 
 def _with_image(
     skin: Skin,
@@ -35,18 +47,6 @@ def _with_image(
         created_at=skin.created_at,
         image_url=image_url,
     )
-
-    value = value.strip().lower()
-    try:
-        if value.endswith("m"):
-            return timedelta(minutes=int(value[:-1]))
-        if value.endswith("h"):
-            return timedelta(hours=int(value[:-1]))
-        if value.endswith("d"):
-            return timedelta(days=int(value[:-1]))
-        return timedelta(hours=int(value))
-    except ValueError:
-        return timedelta(hours=default_hours)
 
 
 @router.get("/search", response_model=SkinSearchResponse)

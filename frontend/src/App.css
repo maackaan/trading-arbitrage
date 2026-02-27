@@ -167,6 +167,14 @@ main {
   font-size: 0.9rem;
 }
 
+.filters .text-input {
+  margin-bottom: 0;
+}
+
+.filters .button {
+  height: 40px;
+}
+
 .button {
   background: #2563eb;
   color: white;
