@@ -14,11 +14,17 @@ router = APIRouter(prefix="/api", tags=["deals"])
 async def get_deals(
     market: str | None = Query(default=None),
     min_discount: float = Query(default=12.0, ge=0.0),
+    since_hours: int = Query(default=24, ge=1, le=168),
     limit: int = Query(default=100, ge=1, le=500),
     session: AsyncSession = Depends(get_session),
 ) -> list[DealItem]:
     repo = ListingRepository(session)
-    rows = await repo.get_deals(market=market, min_discount_pct=min_discount, limit=limit)
+    rows = await repo.get_deals(
+        market=market,
+        min_discount_pct=min_discount,
+        since_hours=since_hours,
+        limit=limit,
+    )
 
     return [
         DealItem(

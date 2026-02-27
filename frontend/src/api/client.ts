@@ -34,13 +34,16 @@ export async function fetchSkinVariants(skinId: number): Promise<SkinVariantsRes
   return getJson(`/api/skins/${skinId}/variants`)
 }
 
-export async function fetchDeals(params: { market?: string; minDiscount?: number } = {}): Promise<DealItem[]> {
+export async function fetchDeals(params: { market?: string; minDiscount?: number; sinceHours?: number } = {}): Promise<DealItem[]> {
   const query = new URLSearchParams()
   if (params.market) {
     query.set('market', params.market)
   }
   if (params.minDiscount !== undefined) {
     query.set('min_discount', String(params.minDiscount))
+  }
+  if (params.sinceHours !== undefined) {
+    query.set('since_hours', String(params.sinceHours))
   }
   return getJson(`/api/deals?${query.toString()}`)
 }

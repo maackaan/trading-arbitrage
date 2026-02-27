@@ -5,8 +5,9 @@ import { useRealtime } from '../components/useRealtime'
 import type { DealItem, RealtimeEvent } from '../types'
 
 export function DealsPage() {
-  const [market, setMarket] = useState('')
-  const [minDiscount, setMinDiscount] = useState(12)
+  const [market, setMarket] = useState('csmoney')
+  const [minDiscount, setMinDiscount] = useState(15)
+  const [sinceHours, setSinceHours] = useState(24)
   const [deals, setDeals] = useState<DealItem[]>([])
   const [loading, setLoading] = useState(false)
   const { subscribe } = useRealtime()
@@ -14,12 +15,12 @@ export function DealsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const rows = await fetchDeals({ market: market || undefined, minDiscount })
+      const rows = await fetchDeals({ market: market || undefined, minDiscount, sinceHours })
       setDeals(rows)
     } finally {
       setLoading(false)
     }
-  }, [market, minDiscount])
+  }, [market, minDiscount, sinceHours])
 
   useEffect(() => {
     void load()
@@ -38,7 +39,9 @@ export function DealsPage() {
   return (
     <section className="page">
       <h1>Deals feed</h1>
-      <p className="muted">Only listings flagged as underpriced against Buff163 and rolling market mean.</p>
+      <p className="muted">
+        Only listings flagged as underpriced against Buff163 and rolling market mean. In mock mode, prices are simulated.
+      </p>
       <div className="filters">
         <label>
           Market
@@ -52,6 +55,17 @@ export function DealsPage() {
             value={minDiscount}
             onChange={(e) => setMinDiscount(Number(e.target.value))}
             min={0}
+          />
+        </label>
+        <label>
+          Since (hours)
+          <input
+            className="text-input"
+            type="number"
+            value={sinceHours}
+            onChange={(e) => setSinceHours(Number(e.target.value))}
+            min={1}
+            max={168}
           />
         </label>
         <button className="button" onClick={() => void load()}>

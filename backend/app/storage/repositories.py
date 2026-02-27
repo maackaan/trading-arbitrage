@@ -336,9 +336,11 @@ class ListingRepository:
         *,
         market: str | None = None,
         min_discount_pct: float = 0.0,
+        since_hours: int = 24,
         limit: int = 100,
     ) -> list[ListingTable]:
-        conditions = [ListingTable.is_deal.is_(True)]
+        since = datetime.now(timezone.utc) - timedelta(hours=since_hours)
+        conditions = [ListingTable.is_deal.is_(True), ListingTable.detected_at >= since]
         if market:
             conditions.append(ListingTable.market == market)
 
