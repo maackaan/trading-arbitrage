@@ -9,30 +9,34 @@ export function NewListingsPage() {
   const [sinceHours, setSinceHours] = useState(6)
   const [items, setItems] = useState<ListingItem[]>([])
   const [loading, setLoading] = useState(false)
+  const [appliedFilters, setAppliedFilters] = useState({ market: 'csmoney', sinceHours: 6 })
   const { subscribe } = useRealtime()
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (filters: { market: string; sinceHours: number }) => {
     setLoading(true)
     try {
-      const rows = await fetchNewListings({ market: market || undefined, sinceHours })
+      const rows = await fetchNewListings({
+        market: filters.market || undefined,
+        sinceHours: filters.sinceHours,
+      })
       setItems(rows)
     } finally {
       setLoading(false)
     }
-  }, [market, sinceHours])
+  }, [])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    void load(appliedFilters)
+  }, [appliedFilters, load])
 
   useEffect(
     () =>
       subscribe((event: RealtimeEvent) => {
         if (event.event === 'new_listing') {
-          void load()
+          void load(appliedFilters)
         }
       }),
-    [load, subscribe],
+    [appliedFilters, load, subscribe],
   )
 
   return (
@@ -55,7 +59,12 @@ export function NewListingsPage() {
             max={168}
           />
         </label>
-        <button className="button" onClick={() => void load()}>
+        <button
+          className="button"
+          onClick={() => {
+            setAppliedFilters({ market, sinceHours })
+          }}
+        >
           Refresh
         </button>
       </div>
@@ -92,6 +101,9 @@ export function NewListingsPage() {
       {!loading && items.length === 0 ? (
         <p className="muted">
           No real listings found for this filter.
+          {appliedFilters.market.trim().toLowerCase() === 'csmoney'
+            ? ' CS.MONEY direct recent-feed API is not configured, so unverified rows are hidden.'
+            : ''}
         </p>
       ) : null}
     </section>

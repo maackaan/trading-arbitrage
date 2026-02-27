@@ -38,24 +38,42 @@ export function SkinDetailsPage() {
   const [points, setPoints] = useState<PricePoint[]>([])
   const [wearOptions, setWearOptions] = useState<Array<{ wear: string; skin: Skin }>>([])
   const [loading, setLoading] = useState(false)
+  const [historyError, setHistoryError] = useState<string | null>(null)
+  const [imageBroken, setImageBroken] = useState(false)
   const { connected, subscribe, lastEventAt } = useRealtime()
 
   const load = useCallback(async () => {
     if (!Number.isFinite(parsedSkinId)) return
     setLoading(true)
+    setHistoryError(null)
     try {
-      const [nextSummary, nextPoints] = await Promise.all([
-        fetchSkinSummary(parsedSkinId),
-        fetchSkinPrices(parsedSkinId, '7d'),
-      ])
+      const nextSummary = await fetchSkinSummary(parsedSkinId)
       setSummary(nextSummary)
-      setPoints(nextPoints)
-      try {
-        const variantPayload = await fetchSkinVariants(parsedSkinId)
+      setImageBroken(false)
+
+      const [pricesResult, variantsResult] = await Promise.allSettled([
+        fetchSkinPrices(parsedSkinId, '7d'),
+        fetchSkinVariants(parsedSkinId),
+      ])
+
+      if (pricesResult.status === 'fulfilled') {
+        setPoints(pricesResult.value)
+      } else {
+        setPoints([])
+        setHistoryError('Price history is temporarily unavailable.')
+      }
+
+      if (variantsResult.status === 'fulfilled') {
+        const variantPayload = variantsResult.value
         setWearOptions(variantPayload.wear_options)
-      } catch {
+      } else {
         setWearOptions([])
       }
+    } catch {
+      setSummary(null)
+      setPoints([])
+      setWearOptions([])
+      setHistoryError(null)
     } finally {
       setLoading(false)
     }
@@ -83,6 +101,7 @@ export function SkinDetailsPage() {
     [points],
   )
   const chartData = useMemo(() => buildChartData(points), [points])
+  const heroImageUrl = summary?.image_url ?? summary?.skin.image_url ?? null
 
   if (!Number.isFinite(parsedSkinId)) {
     return <section className="page">Invalid skin id</section>
@@ -99,31 +118,24 @@ export function SkinDetailsPage() {
   return (
     <section className="page">
       <h1>{summary.skin.name}</h1>
-      {summary.image_url ? <img className="skin-hero" src={summary.image_url} alt={summary.skin.name} /> : null}
       <p className="muted">
         Realtime: {connected ? 'connected' : 'disconnected'}
         {lastEventAt ? ` | last event ${new Date(lastEventAt).toLocaleTimeString()}` : ''}
       </p>
 
-      <div className="grid two-col">
+      <div className="grid two-col details-top-grid">
         <article className="card">
-          <h2>Current prices</h2>
-          <p>
-            Buff163 baseline: <strong>{summary.baseline_price?.toFixed(2) ?? 'n/a'} USD</strong>
-          </p>
-          <ul className="list compact">
-            {summary.latest_prices.map((price) => (
-              <li key={price.market}>
-                <span>{price.market}</span>
-                <span>
-                  {price.price.toFixed(2)} {price.currency}
-                  {price.spread_vs_buff163_pct !== null
-                    ? ` (${price.spread_vs_buff163_pct >= 0 ? '+' : ''}${price.spread_vs_buff163_pct.toFixed(2)}%)`
-                    : ''}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <h2>Item</h2>
+          {heroImageUrl && !imageBroken ? (
+            <img
+              className="skin-hero"
+              src={heroImageUrl}
+              alt={summary.skin.name}
+              onError={() => setImageBroken(true)}
+            />
+          ) : (
+            <div className="skin-hero skin-hero-placeholder">Image unavailable</div>
+          )}
         </article>
 
         <article className="card">
@@ -144,22 +156,73 @@ export function SkinDetailsPage() {
         </article>
       </div>
 
-      {wearOptions.length > 0 ? (
+      <div className={`grid details-middle-grid ${wearOptions.length > 0 ? 'with-wear' : 'no-wear'}`}>
+        {wearOptions.length > 0 ? (
+          <article className="card">
+            <h2>Switch wear</h2>
+            <div className="wear-stack">
+              {wearOptions.map((option) => (
+                <Link
+                  key={option.skin.id}
+                  to={`/skins/${option.skin.id}`}
+                  className={`chip-link wear-link ${option.skin.id === summary.skin.id ? 'active' : ''}`}
+                >
+                  {option.wear}
+                </Link>
+              ))}
+            </div>
+          </article>
+        ) : null}
+
         <article className="card">
-          <h2>Switch wear</h2>
-          <div className="chip-row">
-            {wearOptions.map((option) => (
-              <Link
-                key={option.skin.id}
-                to={`/skins/${option.skin.id}`}
-                className={`chip-link ${option.skin.id === summary.skin.id ? 'active' : ''}`}
-              >
-                {option.wear}
-              </Link>
+          <h2>Current prices</h2>
+          <p>
+            Buff163 baseline: <strong>{summary.baseline_price?.toFixed(2) ?? 'n/a'} USD</strong>
+          </p>
+          <ul className="list compact">
+            {summary.latest_prices.map((price) => (
+              <li key={price.market}>
+                <span>{price.market}</span>
+                <span>
+                  {price.price.toFixed(2)} {price.currency}
+                  {price.spread_vs_buff163_pct !== null
+                    ? ` (${price.spread_vs_buff163_pct >= 0 ? '+' : ''}${price.spread_vs_buff163_pct.toFixed(2)}%)`
+                    : ''}
+                </span>
+              </li>
             ))}
-          </div>
+          </ul>
         </article>
-      ) : null}
+      </div>
+
+      <article className="card chart-card">
+        <h2>Price history (7d)</h2>
+        {historyError ? <p className="muted">{historyError}</p> : null}
+        <ResponsiveContainer width="100%" height={340}>
+          <LineChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis
+              dataKey="timestamp"
+              tickFormatter={(value) => new Date(String(value)).toLocaleDateString()}
+              minTickGap={30}
+            />
+            <YAxis domain={['auto', 'auto']} />
+            <Tooltip labelFormatter={(value) => new Date(String(value)).toLocaleString()} />
+            <Legend />
+            {markets.map((market, index) => (
+              <Line
+                key={market}
+                type="monotone"
+                dataKey={market}
+                stroke={palette[index % palette.length]}
+                dot={false}
+                strokeWidth={2}
+                connectNulls
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </article>
 
       <article className="card">
         <h2>Metrics</h2>
@@ -187,34 +250,6 @@ export function SkinDetailsPage() {
             ))}
           </tbody>
         </table>
-      </article>
-
-      <article className="card chart-card">
-        <h2>Price history (7d)</h2>
-        <ResponsiveContainer width="100%" height={340}>
-          <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis
-              dataKey="timestamp"
-              tickFormatter={(value) => new Date(String(value)).toLocaleDateString()}
-              minTickGap={30}
-            />
-            <YAxis domain={['auto', 'auto']} />
-            <Tooltip labelFormatter={(value) => new Date(String(value)).toLocaleString()} />
-            <Legend />
-            {markets.map((market, index) => (
-              <Line
-                key={market}
-                type="monotone"
-                dataKey={market}
-                stroke={palette[index % palette.length]}
-                dot={false}
-                strokeWidth={2}
-                connectNulls
-              />
-            ))}
-          </LineChart>
-        </ResponsiveContainer>
       </article>
     </section>
   )

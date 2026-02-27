@@ -10,34 +10,35 @@ export function DealsPage() {
   const [sinceHours, setSinceHours] = useState(24)
   const [deals, setDeals] = useState<DealItem[]>([])
   const [loading, setLoading] = useState(false)
+  const [appliedFilters, setAppliedFilters] = useState({ market: 'csmoney', minDiscount: 5, sinceHours: 24 })
   const { subscribe } = useRealtime()
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (filters: { market: string; minDiscount: number; sinceHours: number }) => {
     setLoading(true)
     try {
       const rows = await fetchDeals({
-        market: market || undefined,
-        minDiscount,
-        sinceHours,
+        market: filters.market || undefined,
+        minDiscount: filters.minDiscount,
+        sinceHours: filters.sinceHours,
       })
       setDeals(rows)
     } finally {
       setLoading(false)
     }
-  }, [market, minDiscount, sinceHours])
+  }, [])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    void load(appliedFilters)
+  }, [appliedFilters, load])
 
   useEffect(
     () =>
       subscribe((event: RealtimeEvent) => {
         if (event.event === 'deal_alert') {
-          void load()
+          void load(appliedFilters)
         }
       }),
-    [load, subscribe],
+    [appliedFilters, load, subscribe],
   )
 
   return (
@@ -72,7 +73,12 @@ export function DealsPage() {
             max={168}
           />
         </label>
-        <button className="button" onClick={() => void load()}>
+        <button
+          className="button"
+          onClick={() => {
+            setAppliedFilters({ market, minDiscount, sinceHours })
+          }}
+        >
           Apply
         </button>
       </div>
@@ -112,6 +118,9 @@ export function DealsPage() {
       {!loading && deals.length === 0 ? (
         <p className="muted">
           No real deals found for this filter.
+          {appliedFilters.market.trim().toLowerCase() === 'csmoney'
+            ? ' CS.MONEY direct recent-feed API is not configured, so unverified rows are hidden.'
+            : ''}
         </p>
       ) : null}
     </section>
