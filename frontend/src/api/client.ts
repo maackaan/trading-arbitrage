@@ -14,7 +14,7 @@ export async function fetchHealth(): Promise<{ status: string; use_mock_provider
 
 export async function searchSkins(query: string): Promise<SkinSearchResponse> {
   if (!query.trim()) {
-    return { query, corrected_query: null, suggestions: [], results: [] }
+    return { query, corrected_query: null, suggestions: [], best_match: null, wear_options: [], results: [] }
   }
   const encoded = encodeURIComponent(query.trim())
   return getJson(`/api/skins/search?q=${encoded}`)

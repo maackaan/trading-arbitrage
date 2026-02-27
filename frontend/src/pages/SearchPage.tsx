@@ -16,6 +16,8 @@ export function SearchPage() {
   const [results, setResults] = useState<Skin[]>([])
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [correctedQuery, setCorrectedQuery] = useState<string | null>(null)
+  const [bestMatch, setBestMatch] = useState<Skin | null>(null)
+  const [wearOptions, setWearOptions] = useState<Array<{ wear: string; skin: Skin }>>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasSearched, setHasSearched] = useState(false)
@@ -26,6 +28,8 @@ export function SearchPage() {
       setResults([])
       setSuggestions([])
       setCorrectedQuery(null)
+      setBestMatch(null)
+      setWearOptions([])
       setHasSearched(false)
       setError(null)
       return
@@ -38,6 +42,8 @@ export function SearchPage() {
       setResults(response.results)
       setSuggestions(response.suggestions)
       setCorrectedQuery(response.corrected_query)
+      setBestMatch(response.best_match)
+      setWearOptions(response.wear_options)
       setHasSearched(true)
     } catch {
       setError('Search failed. Check if backend is running.')
@@ -82,6 +88,8 @@ export function SearchPage() {
               setResults([])
               setSuggestions([])
               setCorrectedQuery(null)
+              setBestMatch(null)
+              setWearOptions([])
               setHasSearched(false)
               setError(null)
             }}
@@ -112,6 +120,29 @@ export function SearchPage() {
         <p className="muted">
           Interpreting this as <strong>{correctedQuery}</strong>.
         </p>
+      ) : null}
+      {bestMatch ? (
+        <article className="card">
+          <h2>Best match</h2>
+          <p>
+            <Link to={`/skins/${bestMatch.id}`}>{bestMatch.name}</Link>
+          </p>
+          {wearOptions.length > 0 ? (
+            <>
+              <p className="muted">Wear options (Factory New to Battle-Scarred):</p>
+              <ul className="list compact">
+                {wearOptions.map((option) => (
+                  <li key={option.skin.id}>
+                    <span>{option.wear}</span>
+                    <Link to={`/skins/${option.skin.id}`}>{option.skin.name}</Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="muted">No exterior variants found for this item.</p>
+          )}
+        </article>
       ) : null}
       {suggestions.length > 0 ? (
         <div className="suggestions">

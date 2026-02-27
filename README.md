@@ -77,6 +77,12 @@ Adapters exist for:
 When `USE_MOCK_PROVIDERS=false`, adapters intentionally return empty data until official API integrations are implemented.
 No ToS-violating scraping is included.
 
+## Search Behavior
+
+- Search is fuzzy and alias-aware (e.g., `ak47`, `deagle`, `knives`, `talon`).
+- Backend uses the CSGOSKINS public search index for broad catalog coverage.
+- Best match returns wear variants in order: Factory New -> Minimal Wear -> Field-Tested -> Well-Worn -> Battle-Scarred.
+
 ## Prediction v1
 
 The 7.5-day forecast is intentionally simple and replaceable:

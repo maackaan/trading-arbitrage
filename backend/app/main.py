@@ -11,6 +11,7 @@ from app.core.logging import configure_logging
 from app.core.settings import get_settings
 from app.providers.factory import build_providers
 from app.services.aggregation import AggregationService
+from app.services.catalog_search import CatalogSearchService
 from app.services.deal_detection import DealDetectionService
 from app.services.realtime import RealtimeManager
 from app.services.scheduler import RefreshScheduler
@@ -31,6 +32,14 @@ async def lifespan(app: FastAPI):
         await SkinRepository(session).seed_skins(settings.seed_skins)
 
     providers = build_providers(settings)
+    catalog_search = None
+    if settings.search_catalog_provider.lower() == "csgoskins_gg":
+        catalog_search = CatalogSearchService(
+            base_url=settings.search_catalog_url,
+            api_key=settings.search_catalog_key,
+            timeout_seconds=settings.search_catalog_timeout_seconds,
+            fetch_wears=settings.search_catalog_fetch_wears,
+        )
     realtime = RealtimeManager()
     deal_detection = DealDetectionService()
 
@@ -47,6 +56,7 @@ async def lifespan(app: FastAPI):
         settings=settings,
         engine=engine,
         session_factory=session_factory,
+        catalog_search=catalog_search,
         providers=providers,
         realtime=realtime,
         aggregation=aggregation,

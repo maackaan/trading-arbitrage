@@ -36,6 +36,24 @@ class SkinRepository:
         result = await self.session.scalars(select(SkinTable).order_by(SkinTable.name.asc()))
         return list(result.all())
 
+    async def get_by_name(self, name: str) -> SkinTable | None:
+        stmt = select(SkinTable).where(SkinTable.name == name)
+        return (await self.session.scalars(stmt)).first()
+
+    async def get_by_names(self, names: Sequence[str]) -> list[Skin]:
+        if not names:
+            return []
+        stmt = select(SkinTable).where(SkinTable.name.in_(names)).order_by(SkinTable.name.asc())
+        rows = (await self.session.scalars(stmt)).all()
+        return [Skin(id=row.id, name=row.name, created_at=row.created_at) for row in rows]
+
+    async def ensure_by_names(self, names: Sequence[str]) -> list[Skin]:
+        unique_names = [name.strip() for name in names if name.strip()]
+        if not unique_names:
+            return []
+        await self.seed_skins(unique_names)
+        return await self.get_by_names(unique_names)
+
     async def search(
         self, query: str, limit: int = 25
     ) -> tuple[list[Skin], list[str], str | None]:

@@ -12,10 +12,17 @@ class Skin(BaseModel):
     created_at: datetime
 
 
+class WearOption(BaseModel):
+    wear: str
+    skin: Skin
+
+
 class SkinSearchResponse(BaseModel):
     query: str
     corrected_query: Optional[str] = None
     suggestions: List[str] = Field(default_factory=list)
+    best_match: Optional[Skin] = None
+    wear_options: List[WearOption] = Field(default_factory=list)
     results: List[Skin] = Field(default_factory=list)
 
 

@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     refresh_interval_seconds: int = 10
     listing_refresh_interval_seconds: int = 8
     default_history_hours: int = 72
+    search_catalog_provider: str = "csgoskins_gg"
+    search_catalog_url: str = "https://search.csgoskins.gg"
+    search_catalog_key: str = "6b86fad2efbfd796e2fdf50271b74a68374d7f750d3c19287ce89c0afa8e753d"
+    search_catalog_timeout_seconds: int = 8
+    search_catalog_fetch_wears: bool = True
 
     provider_rate_limits: str = "steam:5,buff_market:5,dmarket:5,skinbaron:5,buff163:5,csgofloat:5,skinsmonkey:5,skinport:5,csmoney:5"
 

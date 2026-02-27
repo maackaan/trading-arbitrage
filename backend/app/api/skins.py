@@ -5,8 +5,10 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session
-from app.domain.models import MetricBundle, Skin, SkinSearchResponse, SkinSummary
+from app.api.deps import get_container, get_session
+from app.core.container import AppContainer
+from app.domain.models import MetricBundle, Skin, SkinSearchResponse, SkinSummary, WearOption
+from app.services.catalog_search import WEAR_ORDER
 from app.services.prediction import predict_price_7d5
 from app.services.pricing_metrics import rolling_mean, safe_mean, spread_pct
 from app.storage.repositories import PriceRepository, SkinRepository
@@ -35,13 +37,62 @@ def _parse_range(value: str | None, default_hours: int = 72) -> timedelta:
 async def search_skins(
     q: str = Query(min_length=1, max_length=100),
     session: AsyncSession = Depends(get_session),
+    container: AppContainer = Depends(get_container),
 ) -> SkinSearchResponse:
     skin_repo = SkinRepository(session)
+    catalog = container.catalog_search
+
+    if catalog:
+        external_items = await catalog.search_items(q, limit=30)
+        if external_items:
+            names = [item.title for item in external_items]
+            best_name = external_items[0].title
+            wear_names = await catalog.fetch_wears_for_item(external_items[0].url)
+            wear_skin_names = [
+                f"{best_name} ({wear})"
+                for wear in wear_names
+                if wear != "Vanilla"
+            ]
+
+            all_names = list(dict.fromkeys([*names, *wear_skin_names]))
+            skin_records = await skin_repo.ensure_by_names(all_names)
+            by_name = {skin.name: skin for skin in skin_records}
+
+            results = [by_name[name] for name in names if name in by_name][:25]
+            best_match = by_name.get(best_name)
+            wear_options = [
+                WearOption(
+                    wear=wear,
+                    skin=by_name[wear_skin_name],
+                )
+                for wear, wear_skin_name in (
+                    (wear, f"{best_name} ({wear})")
+                    for wear in sorted(wear_names, key=lambda value: WEAR_ORDER.get(value, 99))
+                    if wear != "Vanilla"
+                )
+                if wear_skin_name in by_name
+            ]
+
+            corrected_query = None
+            if best_match and best_match.name.strip().lower() != q.strip().lower():
+                corrected_query = best_match.name
+
+            return SkinSearchResponse(
+                query=q,
+                corrected_query=corrected_query,
+                suggestions=[item.title for item in external_items[:5]],
+                best_match=best_match,
+                wear_options=wear_options,
+                results=results,
+            )
+
     results, suggestions, corrected_query = await skin_repo.search(q)
     return SkinSearchResponse(
         query=q,
         corrected_query=corrected_query,
         suggestions=suggestions,
+        best_match=results[0] if results else None,
+        wear_options=[],
         results=results,
     )
 

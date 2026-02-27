@@ -8,6 +8,11 @@ export type SkinSearchResponse = {
   query: string
   corrected_query: string | null
   suggestions: string[]
+  best_match: Skin | null
+  wear_options: {
+    wear: string
+    skin: Skin
+  }[]
   results: Skin[]
 }
 
