@@ -8,7 +8,6 @@ export function DealsPage() {
   const [market, setMarket] = useState('csmoney')
   const [minDiscount, setMinDiscount] = useState(5)
   const [sinceHours, setSinceHours] = useState(24)
-  const [includeSimulated, setIncludeSimulated] = useState(true)
   const [deals, setDeals] = useState<DealItem[]>([])
   const [loading, setLoading] = useState(false)
   const { subscribe } = useRealtime()
@@ -20,13 +19,12 @@ export function DealsPage() {
         market: market || undefined,
         minDiscount,
         sinceHours,
-        includeSimulated,
       })
       setDeals(rows)
     } finally {
       setLoading(false)
     }
-  }, [market, minDiscount, sinceHours, includeSimulated])
+  }, [market, minDiscount, sinceHours])
 
   useEffect(() => {
     void load()
@@ -46,8 +44,7 @@ export function DealsPage() {
     <section className="page">
       <h1>Deals feed</h1>
       <p className="muted">
-        Underpriced listings versus Buff163 and rolling market mean.
-        {includeSimulated ? ' Includes simulated fallback listings.' : ' Showing only non-simulated listings.'}
+        Underpriced real listings versus Buff163 and rolling market mean.
       </p>
       <div className="filters">
         <label>
@@ -75,10 +72,6 @@ export function DealsPage() {
             max={168}
           />
         </label>
-        <label className="checkbox">
-          <input type="checkbox" checked={includeSimulated} onChange={(e) => setIncludeSimulated(e.target.checked)} />
-          Include simulated
-        </label>
         <button className="button" onClick={() => void load()}>
           Apply
         </button>
@@ -97,7 +90,6 @@ export function DealsPage() {
                 <div className="muted">
                   Listed: {new Date(deal.listed_at).toLocaleString()}
                   {deal.price_source ? ` | Source: ${deal.price_source}` : ''}
-                  {deal.is_simulated ? ' | Simulated' : ''}
                 </div>
                 <div className="muted">
                   Discount vs Buff163:{' '}
@@ -119,7 +111,7 @@ export function DealsPage() {
       </ul>
       {!loading && deals.length === 0 ? (
         <p className="muted">
-          No deals found for this filter. If you expected mock rows, enable “Include simulated”.
+          No real deals found for this filter.
         </p>
       ) : null}
     </section>

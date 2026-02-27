@@ -330,7 +330,6 @@ class ListingRepository:
         market: str | None = None,
         limit: int = 100,
         since_hours: int = 24,
-        include_simulated: bool = False,
     ) -> list[ListingItem]:
         since = datetime.now(timezone.utc) - timedelta(hours=since_hours)
         conditions = [ListingTable.listed_at >= since]
@@ -348,7 +347,7 @@ class ListingRepository:
         items: list[ListingItem] = []
         for row in rows:
             metadata = _parse_metadata(row.metadata_json)
-            if not include_simulated and _is_simulated(metadata):
+            if _is_simulated(metadata):
                 continue
             items.append(
                 ListingItem(
@@ -364,7 +363,6 @@ class ListingRepository:
                     reference_price=metadata.get("reference_market_price"),
                     image_url=metadata.get("image_url"),
                     price_source=metadata.get("price_source"),
-                    is_simulated=_is_simulated(metadata),
                     extreme_underpricing=row.extreme_underpricing,
                 )
             )
@@ -379,7 +377,6 @@ class ListingRepository:
         min_discount_pct: float = 0.0,
         since_hours: int = 24,
         limit: int = 100,
-        include_simulated: bool = False,
     ) -> list[ListingTable]:
         since = datetime.now(timezone.utc) - timedelta(hours=since_hours)
         conditions = [ListingTable.is_deal.is_(True), ListingTable.listed_at >= since]
@@ -408,8 +405,6 @@ class ListingRepository:
             .limit(max(limit * 6, limit))
         )
         rows = list((await self.session.scalars(stmt)).all())
-        if include_simulated:
-            return rows[:limit]
         filtered: list[ListingTable] = []
         for row in rows:
             metadata = _parse_metadata(row.metadata_json)

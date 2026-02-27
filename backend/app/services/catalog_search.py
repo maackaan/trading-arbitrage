@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import re
 import time
 from dataclasses import dataclass
@@ -36,6 +37,7 @@ class CatalogItem:
     title: str
     url: str
     category: str | None
+    image_url: str | None
 
 
 class CatalogSearchService:
@@ -46,12 +48,16 @@ class CatalogSearchService:
         api_key: str,
         timeout_seconds: int = 8,
         fetch_wears: bool = True,
+        image_cache_path: str | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.timeout_seconds = timeout_seconds
         self.fetch_wears_enabled = fetch_wears
+        self.image_cache_path = image_cache_path
         self._wear_cache: dict[str, tuple[float, list[str]]] = {}
+        self._image_cache: dict[str, str] = {}
+        self._load_image_cache()
 
     async def search_items(self, query: str, limit: int = 30) -> list[CatalogItem]:
         if not query.strip() or not self.base_url or not self.api_key:
@@ -60,7 +66,7 @@ class CatalogSearchService:
         payload = {
             "q": query,
             "limit": max(limit * 3, 50),
-            "attributesToRetrieve": ["category", "title", "url"],
+            "attributesToRetrieve": ["category", "title", "url", "image_url_primary", "image_url_fallback"],
         }
         response = await asyncio.to_thread(self._post_json, f"{self.base_url}/indexes/pages/search", payload)
         hits = response.get("hits", [])
@@ -75,7 +81,10 @@ class CatalogSearchService:
             if not raw_title:
                 continue
             title = build_display_name(raw_title, category)
-            items.append(CatalogItem(title=title, url=url, category=category))
+            image_url = str(hit.get("image_url_primary") or hit.get("image_url_fallback") or "").strip() or None
+            items.append(CatalogItem(title=title, url=url, category=category, image_url=image_url))
+            if image_url:
+                self._put_image_cache(title, image_url)
 
         deduped: dict[str, CatalogItem] = {}
         for item in items:
@@ -87,6 +96,41 @@ class CatalogSearchService:
             reverse=True,
         )
         return ranked[:limit]
+
+    async def prefetch_images_for_names(self, names: list[str]) -> None:
+        unique_base_names = []
+        seen: set[str] = set()
+        for name in names:
+            base_name = _base_name_from_skin_name(name)
+            if not base_name:
+                continue
+            key = _normalize_name(base_name)
+            if key in seen:
+                continue
+            seen.add(key)
+            if self._image_cache.get(key):
+                continue
+            unique_base_names.append(base_name)
+
+        for base_name in unique_base_names:
+            if not self.base_url or not self.api_key:
+                break
+            try:
+                items = await self.search_items(base_name, limit=3)
+                for item in items:
+                    if item.image_url:
+                        self._put_image_cache(item.title, item.image_url)
+                        break
+            except Exception:
+                logger.debug("Image prefetch failed for %s", base_name)
+            await asyncio.sleep(0.05)
+
+        self._save_image_cache()
+
+    def image_for_skin_name(self, skin_name: str) -> str | None:
+        base_name = _base_name_from_skin_name(skin_name)
+        key = _normalize_name(base_name)
+        return self._image_cache.get(key)
 
     async def fetch_wears_for_item(self, item_url: str) -> list[str]:
         if not self.fetch_wears_enabled:
@@ -130,6 +174,42 @@ class CatalogSearchService:
         with urlopen(request, timeout=self.timeout_seconds) as response:
             return response.read().decode("utf-8", "ignore")
 
+    def _put_image_cache(self, skin_name: str, image_url: str) -> None:
+        base_name = _base_name_from_skin_name(skin_name)
+        key = _normalize_name(base_name)
+        if not key or not image_url:
+            return
+        self._image_cache[key] = image_url
+
+    def _load_image_cache(self) -> None:
+        if not self.image_cache_path:
+            return
+        try:
+            if not os.path.exists(self.image_cache_path):
+                return
+            with open(self.image_cache_path, "r", encoding="utf-8") as file:
+                payload = json.load(file)
+            if isinstance(payload, dict):
+                for key, value in payload.items():
+                    if not isinstance(key, str) or not isinstance(value, str):
+                        continue
+                    if key and value:
+                        self._image_cache[key] = value
+        except Exception:
+            logger.debug("Failed loading image cache from %s", self.image_cache_path)
+
+    def _save_image_cache(self) -> None:
+        if not self.image_cache_path:
+            return
+        try:
+            directory = os.path.dirname(self.image_cache_path)
+            if directory:
+                os.makedirs(directory, exist_ok=True)
+            with open(self.image_cache_path, "w", encoding="utf-8") as file:
+                json.dump(self._image_cache, file, ensure_ascii=True)
+        except Exception:
+            logger.debug("Failed saving image cache to %s", self.image_cache_path)
+
 
 def extract_wears_from_html(html: str) -> list[str]:
     hrefs = re.findall(r'href="https://csgoskins\.gg/items/[^"#?]+/([^"#?]+)"', html)
@@ -169,3 +249,14 @@ def build_display_name(title: str, category: str | None) -> str:
         return normalized_title
 
     return f"{normalized_category} | {normalized_title}"
+
+
+def _base_name_from_skin_name(name: str) -> str:
+    value = (name or "").strip()
+    if value.endswith(")") and " (" in value:
+        return value[: value.rfind(" (")].strip()
+    return value
+
+
+def _normalize_name(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", (name or "").lower())

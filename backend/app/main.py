@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+from contextlib import suppress
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -39,6 +41,7 @@ async def lifespan(app: FastAPI):
             api_key=settings.search_catalog_key,
             timeout_seconds=settings.search_catalog_timeout_seconds,
             fetch_wears=settings.search_catalog_fetch_wears,
+            image_cache_path=settings.catalog_image_cache_path,
         )
     realtime = RealtimeManager()
     deal_detection = DealDetectionService()
@@ -64,10 +67,20 @@ async def lifespan(app: FastAPI):
     )
 
     await scheduler.start()
+    image_prefetch_task: asyncio.Task | None = None
+    if catalog_search and settings.catalog_prefetch_images:
+        image_prefetch_task = asyncio.create_task(
+            catalog_search.prefetch_images_for_names(settings.seed_skins),
+            name="catalog-image-prefetch",
+        )
 
     try:
         yield
     finally:
+        if image_prefetch_task and not image_prefetch_task.done():
+            image_prefetch_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await image_prefetch_task
         await scheduler.stop()
         await engine.dispose()
 

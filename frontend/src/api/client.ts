@@ -34,7 +34,7 @@ export async function fetchSkinVariants(skinId: number): Promise<SkinVariantsRes
   return getJson(`/api/skins/${skinId}/variants`)
 }
 
-export async function fetchDeals(params: { market?: string; minDiscount?: number; sinceHours?: number; includeSimulated?: boolean } = {}): Promise<DealItem[]> {
+export async function fetchDeals(params: { market?: string; minDiscount?: number; sinceHours?: number } = {}): Promise<DealItem[]> {
   const query = new URLSearchParams()
   if (params.market) {
     query.set('market', params.market)
@@ -45,13 +45,10 @@ export async function fetchDeals(params: { market?: string; minDiscount?: number
   if (params.sinceHours !== undefined) {
     query.set('since_hours', String(params.sinceHours))
   }
-  if (params.includeSimulated !== undefined) {
-    query.set('include_simulated', String(params.includeSimulated))
-  }
   return getJson(`/api/deals?${query.toString()}`)
 }
 
-export async function fetchNewListings(params: { market?: string; sinceHours?: number; limit?: number; includeSimulated?: boolean } = {}): Promise<ListingItem[]> {
+export async function fetchNewListings(params: { market?: string; sinceHours?: number; limit?: number } = {}): Promise<ListingItem[]> {
   const query = new URLSearchParams()
   if (params.market) {
     query.set('market', params.market)
@@ -61,9 +58,6 @@ export async function fetchNewListings(params: { market?: string; sinceHours?: n
   }
   if (params.limit !== undefined) {
     query.set('limit', String(params.limit))
-  }
-  if (params.includeSimulated !== undefined) {
-    query.set('include_simulated', String(params.includeSimulated))
   }
   return getJson(`/api/listings/new?${query.toString()}`)
 }

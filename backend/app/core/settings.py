@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./app.db"
 
     use_mock_providers: bool = True
-    mock_listings_enabled: bool = True
+    mock_listings_enabled: bool = False
     mock_seed: int = 42
 
     refresh_interval_seconds: int = 10
@@ -28,9 +28,11 @@ class Settings(BaseSettings):
     search_catalog_key: str = "6b86fad2efbfd796e2fdf50271b74a68374d7f750d3c19287ce89c0afa8e753d"
     search_catalog_timeout_seconds: int = 8
     search_catalog_fetch_wears: bool = True
-    csgoskins_price_fallback_enabled: bool = True
+    csgoskins_price_fallback_enabled: bool = False
     csgoskins_price_ttl_seconds: int = 180
     csgoskins_price_resolve_ttl_seconds: int = 21600
+    catalog_image_cache_path: str = "./skin_images_cache.json"
+    catalog_prefetch_images: bool = True
 
     provider_rate_limits: str = "steam:5,buff_market:5,dmarket:5,skinbaron:5,buff163:5,csgofloat:5,skinsmonkey:5,skinport:5,csmoney:5"
 

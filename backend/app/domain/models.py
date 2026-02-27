@@ -10,6 +10,7 @@ class Skin(BaseModel):
     id: int
     name: str
     created_at: datetime
+    image_url: Optional[str] = None
 
 
 class WearOption(BaseModel):
@@ -104,7 +105,6 @@ class DealItem(BaseModel):
     reference_price: Optional[float] = None
     image_url: Optional[str] = None
     price_source: Optional[str] = None
-    is_simulated: bool = False
     extreme_underpricing: bool = False
 
 
@@ -121,7 +121,6 @@ class ListingItem(BaseModel):
     reference_price: Optional[float] = None
     image_url: Optional[str] = None
     price_source: Optional[str] = None
-    is_simulated: bool = False
     extreme_underpricing: bool
 
 

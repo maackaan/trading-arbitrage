@@ -5,7 +5,8 @@ import json
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session
+from app.api.deps import get_container, get_session
+from app.core.container import AppContainer
 from app.domain.models import DealItem
 from app.storage.repositories import ListingRepository
 
@@ -22,23 +23,14 @@ def _parse_metadata(raw: str | None) -> dict:
     return value if isinstance(value, dict) else {}
 
 
-def _is_simulated(metadata: dict) -> bool:
-    if bool(metadata.get("is_simulated")):
-        return True
-    mode = str(metadata.get("mode") or "").strip().lower()
-    if mode in {"mock", "csgoskins_fallback"}:
-        return True
-    return False
-
-
 @router.get("/deals", response_model=list[DealItem])
 async def get_deals(
     market: str | None = Query(default=None),
     min_discount: float = Query(default=12.0, ge=0.0),
     since_hours: int = Query(default=24, ge=1, le=168),
-    include_simulated: bool = Query(default=False),
     limit: int = Query(default=100, ge=1, le=500),
     session: AsyncSession = Depends(get_session),
+    container: AppContainer = Depends(get_container),
 ) -> list[DealItem]:
     repo = ListingRepository(session)
     rows = await repo.get_deals(
@@ -46,7 +38,6 @@ async def get_deals(
         min_discount_pct=min_discount,
         since_hours=since_hours,
         limit=limit,
-        include_simulated=include_simulated,
     )
 
     payload: list[DealItem] = []
@@ -65,9 +56,13 @@ async def get_deals(
                 discount_vs_buff_pct=row.discount_vs_buff_pct,
                 discount_vs_rolling_pct=row.discount_vs_rolling_pct,
                 reference_price=metadata.get("reference_market_price"),
-                image_url=metadata.get("image_url"),
+                image_url=metadata.get("image_url")
+                or (
+                    container.catalog_search.image_for_skin_name(row.skin_name)
+                    if container.catalog_search
+                    else None
+                ),
                 price_source=metadata.get("price_source"),
-                is_simulated=_is_simulated(metadata),
                 extreme_underpricing=row.extreme_underpricing,
             )
         )

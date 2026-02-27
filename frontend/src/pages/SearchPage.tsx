@@ -124,6 +124,7 @@ export function SearchPage() {
       {bestMatch ? (
         <article className="card">
           <h2>Best match</h2>
+          {bestMatch.image_url ? <img className="listing-thumb" src={bestMatch.image_url} alt={bestMatch.name} /> : null}
           <p>
             <Link to={`/skins/${bestMatch.id}`}>{bestMatch.name}</Link>
           </p>
@@ -134,7 +135,12 @@ export function SearchPage() {
                 {wearOptions.map((option) => (
                   <li key={option.skin.id}>
                     <span>{option.wear}</span>
-                    <Link to={`/skins/${option.skin.id}`}>{option.skin.name}</Link>
+                    <span className="search-wear-link">
+                      {option.skin.image_url ? (
+                        <img className="listing-thumb tiny" src={option.skin.image_url} alt={option.skin.name} />
+                      ) : null}
+                      <Link to={`/skins/${option.skin.id}`}>{option.skin.name}</Link>
+                    </span>
                   </li>
                 ))}
               </ul>

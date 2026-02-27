@@ -20,6 +20,22 @@ def _parse_range(value: str | None, default_hours: int = 72) -> timedelta:
     if not value:
         return timedelta(hours=default_hours)
 
+
+def _with_image(
+    skin: Skin,
+    container: AppContainer | None,
+    override_image_url: str | None = None,
+) -> Skin:
+    image_url = override_image_url
+    if image_url is None and container and container.catalog_search:
+        image_url = container.catalog_search.image_for_skin_name(skin.name)
+    return Skin(
+        id=skin.id,
+        name=skin.name,
+        created_at=skin.created_at,
+        image_url=image_url,
+    )
+
     value = value.strip().lower()
     try:
         if value.endswith("m"):
@@ -57,13 +73,26 @@ async def search_skins(
             all_names = list(dict.fromkeys([*names, *wear_skin_names]))
             skin_records = await skin_repo.ensure_by_names(all_names)
             by_name = {skin.name: skin for skin in skin_records}
+            image_by_name = {item.title: item.image_url for item in external_items}
 
-            results = [by_name[name] for name in names if name in by_name][:25]
-            best_match = by_name.get(best_name)
+            results = [
+                _with_image(
+                    by_name[name],
+                    container,
+                    image_by_name.get(name),
+                )
+                for name in names
+                if name in by_name
+            ][:25]
+            best_match = (
+                _with_image(by_name[best_name], container, image_by_name.get(best_name))
+                if best_name in by_name
+                else None
+            )
             wear_options = [
                 WearOption(
                     wear=wear,
-                    skin=by_name[wear_skin_name],
+                    skin=_with_image(by_name[wear_skin_name], container, image_by_name.get(best_name)),
                 )
                 for wear, wear_skin_name in (
                     (wear, f"{best_name} ({wear})")
@@ -91,9 +120,9 @@ async def search_skins(
         query=q,
         corrected_query=corrected_query,
         suggestions=suggestions,
-        best_match=results[0] if results else None,
+        best_match=_with_image(results[0], container) if results else None,
         wear_options=[],
-        results=results,
+        results=[_with_image(item, container) for item in results],
     )
 
 
@@ -102,6 +131,7 @@ async def skin_prices(
     skin_id: int,
     range: str | None = Query(default="72h"),
     session: AsyncSession = Depends(get_session),
+    container: AppContainer = Depends(get_container),
 ) -> dict:
     skin_repo = SkinRepository(session)
     price_repo = PriceRepository(session)
@@ -114,7 +144,7 @@ async def skin_prices(
     points = await price_repo.get_history(skin_id, since)
 
     return {
-        "skin": Skin(id=skin.id, name=skin.name, created_at=skin.created_at),
+        "skin": _with_image(Skin(id=skin.id, name=skin.name, created_at=skin.created_at), container),
         "range": range,
         "points": [point.model_dump(mode="json") for point in points],
     }
@@ -124,6 +154,7 @@ async def skin_prices(
 async def skin_summary(
     skin_id: int,
     session: AsyncSession = Depends(get_session),
+    container: AppContainer = Depends(get_container),
 ) -> SkinSummary:
     skin_repo = SkinRepository(session)
     price_repo = PriceRepository(session)
@@ -165,9 +196,10 @@ async def skin_summary(
     prediction = predict_price_7d5(buff_points=buff_points, other_market_latest=other_latest)
 
     return SkinSummary(
-        skin=Skin(id=skin.id, name=skin.name, created_at=skin.created_at),
+        skin=_with_image(Skin(id=skin.id, name=skin.name, created_at=skin.created_at), container),
         baseline_price=baseline,
-        image_url=latest_metadata.get("image_url"),
+        image_url=latest_metadata.get("image_url")
+        or (container.catalog_search.image_for_skin_name(skin.name) if container.catalog_search else None),
         latest_prices=latest_prices,
         metrics_by_market=metrics,
         prediction_7d5=prediction,
@@ -204,12 +236,12 @@ async def skin_variants(
         _, wear = split_wear_suffix(variant.name)
         if wear is None:
             continue
-        wear_options.append(WearOption(wear=wear, skin=variant))
+        wear_options.append(WearOption(wear=wear, skin=_with_image(variant, container)))
 
     wear_options.sort(key=lambda item: WEAR_ORDER.get(item.wear, 99))
 
     return SkinVariantsResponse(
-        skin=Skin(id=skin.id, name=skin.name, created_at=skin.created_at),
+        skin=_with_image(Skin(id=skin.id, name=skin.name, created_at=skin.created_at), container),
         base_name=base_name,
         wear_options=wear_options,
     )

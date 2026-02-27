@@ -7,7 +7,6 @@ import type { ListingItem, RealtimeEvent } from '../types'
 export function NewListingsPage() {
   const [market, setMarket] = useState('csmoney')
   const [sinceHours, setSinceHours] = useState(6)
-  const [includeSimulated, setIncludeSimulated] = useState(true)
   const [items, setItems] = useState<ListingItem[]>([])
   const [loading, setLoading] = useState(false)
   const { subscribe } = useRealtime()
@@ -15,12 +14,12 @@ export function NewListingsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const rows = await fetchNewListings({ market: market || undefined, sinceHours, includeSimulated })
+      const rows = await fetchNewListings({ market: market || undefined, sinceHours })
       setItems(rows)
     } finally {
       setLoading(false)
     }
-  }, [market, sinceHours, includeSimulated])
+  }, [market, sinceHours])
 
   useEffect(() => {
     void load()
@@ -39,10 +38,7 @@ export function NewListingsPage() {
   return (
     <section className="page">
       <h1>New listings</h1>
-      <p className="muted">
-        Newest listings first, sorted by listing time from source feed.
-        {includeSimulated ? ' Includes simulated fallback listings.' : ' Showing only non-simulated listings.'}
-      </p>
+      <p className="muted">Newest real listings first, sorted by listing time from source feed.</p>
       <div className="filters">
         <label>
           Market
@@ -58,10 +54,6 @@ export function NewListingsPage() {
             min={1}
             max={168}
           />
-        </label>
-        <label className="checkbox">
-          <input type="checkbox" checked={includeSimulated} onChange={(e) => setIncludeSimulated(e.target.checked)} />
-          Include simulated
         </label>
         <button className="button" onClick={() => void load()}>
           Refresh
@@ -83,7 +75,6 @@ export function NewListingsPage() {
                 </div>
                 <div className="muted">
                   {item.price_source ? `Source: ${item.price_source}` : 'Source: n/a'}
-                  {item.is_simulated ? ' | Simulated' : ''}
                 </div>
               </div>
             </div>
@@ -100,7 +91,7 @@ export function NewListingsPage() {
       </ul>
       {!loading && items.length === 0 ? (
         <p className="muted">
-          No listings found for this filter. If you expected mock rows, enable “Include simulated”.
+          No real listings found for this filter.
         </p>
       ) : null}
     </section>

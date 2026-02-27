@@ -60,11 +60,10 @@ pytest
 
 ## Mock vs Real Providers
 
-By default, `USE_MOCK_PROVIDERS=true`, so all markets generate realistic sample prices without API keys.
-Mock listings are enabled by default (`MOCK_LISTINGS_ENABLED=true`) in mock mode so Deals/New Listings pages have data.
-Simulated rows are explicitly labeled in the UI and can be filtered out if you want real-only feeds.
-When `CSGOSKINS_PRICE_FALLBACK_ENABLED=true` (default), mock rows are automatically corrected with live
-`csgoskins.gg` market prices/images when data is available.
+By default, `USE_MOCK_PROVIDERS=true`, so markets generate sample price snapshots without API keys.
+Mock listings are disabled by default (`MOCK_LISTINGS_ENABLED=false`) so Deals/New Listings never show fake rows.
+`CSGOSKINS_PRICE_FALLBACK_ENABLED=false` by default to avoid csgoskins item-page rate limits.
+Skin images are fetched from the csgoskins search index and cached locally at `backend/skin_images_cache.json`.
 
 Adapters exist for:
 
@@ -80,6 +79,7 @@ Adapters exist for:
 
 When `USE_MOCK_PROVIDERS=false`, adapters intentionally return empty data until official API integrations are implemented.
 No ToS-violating scraping is included.
+Real CS.MONEY listings/deals require an official listing feed integration.
 
 ## Search Behavior
 

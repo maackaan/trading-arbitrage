@@ -12,14 +12,38 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
     let closed = false
     let socket: WebSocket | null = null
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+    let reconnectDelayMs = 2000
 
-    const connect = () => {
+    const scheduleReconnect = () => {
       if (closed) return
+      if (reconnectTimer) clearTimeout(reconnectTimer)
+      reconnectTimer = setTimeout(connect, reconnectDelayMs)
+      reconnectDelayMs = Math.min(reconnectDelayMs * 1.5, 15000)
+    }
+
+    const backendReachable = async () => {
+      try {
+        const response = await fetch('/api/health', { cache: 'no-store' })
+        return response.ok
+      } catch {
+        return false
+      }
+    }
+
+    const connect = async () => {
+      if (closed) return
+      const reachable = await backendReachable()
+      if (!reachable) {
+        setConnected(false)
+        scheduleReconnect()
+        return
+      }
       const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
       socket = new WebSocket(`${protocol}://${window.location.host}/ws`)
 
       socket.onopen = () => {
         setConnected(true)
+        reconnectDelayMs = 2000
       }
 
       socket.onmessage = (message) => {
@@ -34,9 +58,7 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
 
       socket.onclose = () => {
         setConnected(false)
-        if (!closed) {
-          reconnectTimer = setTimeout(connect, 2000)
-        }
+        scheduleReconnect()
       }
 
       socket.onerror = () => {

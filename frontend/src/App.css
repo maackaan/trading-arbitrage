@@ -119,6 +119,17 @@ main {
   flex: 0 0 auto;
 }
 
+.listing-thumb.tiny {
+  width: 56px;
+  height: 40px;
+}
+
+.search-wear-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
 .price-col {
   text-align: right;
 }
@@ -154,14 +165,6 @@ main {
   display: grid;
   gap: 0.25rem;
   font-size: 0.9rem;
-}
-
-.filters .checkbox {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.9rem;
-  padding-bottom: 0.35rem;
 }
 
 .button {

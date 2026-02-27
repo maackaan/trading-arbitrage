@@ -6,3 +6,4 @@ backend/.pytest_cache/
 backend/app.db
 frontend/node_modules/
 frontend/dist/
+backend/skin_images_cache.json
