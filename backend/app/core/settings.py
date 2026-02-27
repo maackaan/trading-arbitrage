@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     skinbaron_api_key: str = ""
     buff163_api_key: str = ""
     csgofloat_api_key: str = ""
+    csfloat_listings_api_url: str = "https://csfloat.com/api/v1/listings"
+    csfloat_api_timeout_seconds: int = 10
+    csfloat_listings_sort: str = "most_recent"
+    csfloat_listings_limit: int = 50
     skinsmonkey_api_key: str = ""
     skinport_api_key: str = ""
     csmoney_api_key: str = ""

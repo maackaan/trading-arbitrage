@@ -68,6 +68,11 @@ def build_providers(settings: Settings) -> list[BaseProvider]:
             mock_engine=mock_engine,
             rate_limit_seconds=_rate(settings, "csgofloat"),
             csgoskins_price_service=csgoskins_price_service,
+            api_key=settings.csgofloat_api_key,
+            listings_api_url=settings.csfloat_listings_api_url,
+            timeout_seconds=settings.csfloat_api_timeout_seconds,
+            listings_sort=settings.csfloat_listings_sort,
+            listings_limit=settings.csfloat_listings_limit,
         ),
         SkinsMonkeyProvider(
             use_mock=use_mock,

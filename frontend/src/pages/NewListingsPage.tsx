@@ -5,12 +5,12 @@ import { useRealtime } from '../components/useRealtime'
 import type { ListingItem, RealtimeEvent } from '../types'
 
 export function NewListingsPage() {
-  const [market, setMarket] = useState('csmoney')
+  const [market, setMarket] = useState('csgofloat')
   const [sinceHours, setSinceHours] = useState(6)
   const [items, setItems] = useState<ListingItem[]>([])
   const [loading, setLoading] = useState(false)
-  const [appliedFilters, setAppliedFilters] = useState({ market: 'csmoney', sinceHours: 6 })
-  const [csmoneyConfigured, setCsmoneyConfigured] = useState(true)
+  const [appliedFilters, setAppliedFilters] = useState({ market: 'csgofloat', sinceHours: 6 })
+  const [csfloatConfigured, setCsfloatConfigured] = useState(true)
   const { subscribe } = useRealtime()
 
   const load = useCallback(async (filters: { market: string; sinceHours: number }) => {
@@ -42,8 +42,8 @@ export function NewListingsPage() {
 
   useEffect(() => {
     void fetchHealth()
-      .then((value) => setCsmoneyConfigured(value.csmoney_listings_api_configured))
-      .catch(() => setCsmoneyConfigured(false))
+      .then((value) => setCsfloatConfigured(value.csfloat_listings_api_configured))
+      .catch(() => setCsfloatConfigured(false))
   }, [])
 
   return (
@@ -108,8 +108,8 @@ export function NewListingsPage() {
       {!loading && items.length === 0 ? (
         <p className="muted">
           No real listings found for this filter.
-          {appliedFilters.market.trim().toLowerCase() === 'csmoney' && !csmoneyConfigured
-            ? ' CS.MONEY direct recent-feed API is not configured, so unverified rows are hidden.'
+          {appliedFilters.market.trim().toLowerCase() === 'csgofloat' && !csfloatConfigured
+            ? ' CSFloat listings API is not configured, so no real CSFloat listings can be shown.'
             : ''}
         </p>
       ) : null}
