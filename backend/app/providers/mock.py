@@ -179,7 +179,7 @@ class MockMarketEngine:
                     skin_name=skin.name,
                     price=listing_price,
                     currency="USD",
-                    listed_at=now - timedelta(minutes=self.random.randint(0, 90)),
+                    listed_at=now - timedelta(seconds=self.random.randint(0, 150)),
                     metadata={"mode": "mock", "discount_factor": discount_factor},
                 )
             )

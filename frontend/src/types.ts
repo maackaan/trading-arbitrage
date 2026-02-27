@@ -58,6 +58,7 @@ export type SkinSummary = {
   skin: Skin
   reference_market: string
   baseline_price: number | null
+  image_url: string | null
   latest_prices: MarketSummary[]
   metrics_by_market: Record<string, MetricBundle>
   prediction_7d5: Prediction | null
@@ -74,6 +75,9 @@ export type DealItem = {
   detected_at: string
   discount_vs_buff_pct: number | null
   discount_vs_rolling_pct: number | null
+  reference_price: number | null
+  image_url: string | null
+  price_source: string | null
   extreme_underpricing: boolean
 }
 
@@ -87,6 +91,9 @@ export type ListingItem = {
   listed_at: string
   detected_at: string
   is_deal: boolean
+  reference_price: number | null
+  image_url: string | null
+  price_source: string | null
   extreme_underpricing: boolean
 }
 

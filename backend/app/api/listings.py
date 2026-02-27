@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api", tags=["listings"])
 async def get_new_listings(
     market: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
-    since_hours: int = Query(default=24, ge=1, le=168),
+    since_hours: int = Query(default=6, ge=1, le=168),
     session: AsyncSession = Depends(get_session),
 ) -> list[ListingItem]:
     repo = ListingRepository(session)

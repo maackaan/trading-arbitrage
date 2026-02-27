@@ -99,6 +99,7 @@ export function SkinDetailsPage() {
   return (
     <section className="page">
       <h1>{summary.skin.name}</h1>
+      {summary.image_url ? <img className="skin-hero" src={summary.image_url} alt={summary.skin.name} /> : null}
       <p className="muted">
         Realtime: {connected ? 'connected' : 'disconnected'}
         {lastEventAt ? ` | last event ${new Date(lastEventAt).toLocaleTimeString()}` : ''}

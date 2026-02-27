@@ -84,6 +84,7 @@ class SkinSummary(BaseModel):
     skin: Skin
     reference_market: str = "buff163"
     baseline_price: Optional[float] = None
+    image_url: Optional[str] = None
     latest_prices: List[MarketSummary]
     metrics_by_market: Dict[str, MetricBundle]
     prediction_7d5: Optional[PredictionResult] = None
@@ -100,6 +101,9 @@ class DealItem(BaseModel):
     detected_at: datetime
     discount_vs_buff_pct: Optional[float] = None
     discount_vs_rolling_pct: Optional[float] = None
+    reference_price: Optional[float] = None
+    image_url: Optional[str] = None
+    price_source: Optional[str] = None
     extreme_underpricing: bool = False
 
 
@@ -113,6 +117,9 @@ class ListingItem(BaseModel):
     listed_at: datetime
     detected_at: datetime
     is_deal: bool
+    reference_price: Optional[float] = None
+    image_url: Optional[str] = None
+    price_source: Optional[str] = None
     extreme_underpricing: bool
 
 

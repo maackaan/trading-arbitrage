@@ -48,10 +48,16 @@ export async function fetchDeals(params: { market?: string; minDiscount?: number
   return getJson(`/api/deals?${query.toString()}`)
 }
 
-export async function fetchNewListings(params: { market?: string } = {}): Promise<ListingItem[]> {
+export async function fetchNewListings(params: { market?: string; sinceHours?: number; limit?: number } = {}): Promise<ListingItem[]> {
   const query = new URLSearchParams()
   if (params.market) {
     query.set('market', params.market)
+  }
+  if (params.sinceHours !== undefined) {
+    query.set('since_hours', String(params.sinceHours))
+  }
+  if (params.limit !== undefined) {
+    query.set('limit', String(params.limit))
   }
   return getJson(`/api/listings/new?${query.toString()}`)
 }

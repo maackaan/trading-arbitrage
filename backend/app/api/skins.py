@@ -133,6 +133,7 @@ async def skin_summary(
         raise HTTPException(status_code=404, detail="Skin not found")
 
     latest_prices = await price_repo.get_latest_per_market(skin_id)
+    latest_metadata = await price_repo.get_latest_metadata(skin_id)
     baseline = next((item.price for item in latest_prices if item.market == "buff163"), None)
 
     metrics: dict[str, MetricBundle] = {}
@@ -166,6 +167,7 @@ async def skin_summary(
     return SkinSummary(
         skin=Skin(id=skin.id, name=skin.name, created_at=skin.created_at),
         baseline_price=baseline,
+        image_url=latest_metadata.get("image_url"),
         latest_prices=latest_prices,
         metrics_by_market=metrics,
         prediction_7d5=prediction,

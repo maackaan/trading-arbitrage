@@ -12,6 +12,7 @@ from app.providers.skinbaron import SkinBaronProvider
 from app.providers.skinport import SkinportProvider
 from app.providers.skinsmonkey import SkinsMonkeyProvider
 from app.providers.steam import SteamProvider
+from app.services.csgoskins_price import CSGOSkinsPriceService
 
 
 def _rate(settings: Settings, provider_name: str) -> float:
@@ -21,31 +22,68 @@ def _rate(settings: Settings, provider_name: str) -> float:
 def build_providers(settings: Settings) -> list[BaseProvider]:
     mock_engine = MockMarketEngine(seed=settings.mock_seed)
     use_mock = settings.use_mock_providers
+    csgoskins_price_service = CSGOSkinsPriceService(
+        enabled=settings.csgoskins_price_fallback_enabled,
+        search_base_url=settings.search_catalog_url,
+        search_api_key=settings.search_catalog_key,
+        timeout_seconds=settings.search_catalog_timeout_seconds,
+        resolve_ttl_seconds=settings.csgoskins_price_resolve_ttl_seconds,
+        snapshot_ttl_seconds=settings.csgoskins_price_ttl_seconds,
+    )
 
     return [
-        SteamProvider(use_mock=use_mock, mock_engine=mock_engine, rate_limit_seconds=_rate(settings, "steam")),
+        SteamProvider(
+            use_mock=use_mock,
+            mock_engine=mock_engine,
+            rate_limit_seconds=_rate(settings, "steam"),
+            csgoskins_price_service=csgoskins_price_service,
+        ),
         BuffMarketProvider(
             use_mock=use_mock,
             mock_engine=mock_engine,
             rate_limit_seconds=_rate(settings, "buff_market"),
+            csgoskins_price_service=csgoskins_price_service,
         ),
-        DMarketProvider(use_mock=use_mock, mock_engine=mock_engine, rate_limit_seconds=_rate(settings, "dmarket")),
+        DMarketProvider(
+            use_mock=use_mock,
+            mock_engine=mock_engine,
+            rate_limit_seconds=_rate(settings, "dmarket"),
+            csgoskins_price_service=csgoskins_price_service,
+        ),
         SkinBaronProvider(
             use_mock=use_mock,
             mock_engine=mock_engine,
             rate_limit_seconds=_rate(settings, "skinbaron"),
+            csgoskins_price_service=csgoskins_price_service,
         ),
-        Buff163Provider(use_mock=use_mock, mock_engine=mock_engine, rate_limit_seconds=_rate(settings, "buff163")),
+        Buff163Provider(
+            use_mock=use_mock,
+            mock_engine=mock_engine,
+            rate_limit_seconds=_rate(settings, "buff163"),
+            csgoskins_price_service=csgoskins_price_service,
+        ),
         CSGOFloatProvider(
             use_mock=use_mock,
             mock_engine=mock_engine,
             rate_limit_seconds=_rate(settings, "csgofloat"),
+            csgoskins_price_service=csgoskins_price_service,
         ),
         SkinsMonkeyProvider(
             use_mock=use_mock,
             mock_engine=mock_engine,
             rate_limit_seconds=_rate(settings, "skinsmonkey"),
+            csgoskins_price_service=csgoskins_price_service,
         ),
-        SkinportProvider(use_mock=use_mock, mock_engine=mock_engine, rate_limit_seconds=_rate(settings, "skinport")),
-        CSMoneyProvider(use_mock=use_mock, mock_engine=mock_engine, rate_limit_seconds=_rate(settings, "csmoney")),
+        SkinportProvider(
+            use_mock=use_mock,
+            mock_engine=mock_engine,
+            rate_limit_seconds=_rate(settings, "skinport"),
+            csgoskins_price_service=csgoskins_price_service,
+        ),
+        CSMoneyProvider(
+            use_mock=use_mock,
+            mock_engine=mock_engine,
+            rate_limit_seconds=_rate(settings, "csmoney"),
+            csgoskins_price_service=csgoskins_price_service,
+        ),
     ]

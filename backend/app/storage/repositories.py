@@ -17,6 +17,16 @@ def _score_row(query: str, skin_name: str) -> float:
     return score_skin_name(query, skin_name)
 
 
+def _parse_metadata(raw: str | None) -> dict:
+    if not raw:
+        return {}
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
 class SkinRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -234,6 +244,16 @@ class PriceRepository:
         rows = (await self.session.execute(stmt)).all()
         return [(ts, float(price)) for ts, price in rows]
 
+    async def get_latest_metadata(self, skin_id: int) -> dict:
+        stmt = (
+            select(PriceSnapshotTable.metadata_json)
+            .where(PriceSnapshotTable.skin_id == skin_id)
+            .order_by(desc(PriceSnapshotTable.observed_at))
+            .limit(1)
+        )
+        raw = (await self.session.scalars(stmt)).first()
+        return _parse_metadata(raw)
+
 
 class ListingRepository:
     def __init__(self, session: AsyncSession):
@@ -303,33 +323,39 @@ class ListingRepository:
         since_hours: int = 24,
     ) -> list[ListingItem]:
         since = datetime.now(timezone.utc) - timedelta(hours=since_hours)
-        conditions = [ListingTable.detected_at >= since]
+        conditions = [ListingTable.listed_at >= since]
         if market:
             conditions.append(ListingTable.market == market)
 
         stmt = (
             select(ListingTable)
             .where(and_(*conditions))
-            .order_by(desc(ListingTable.detected_at))
+            .order_by(desc(ListingTable.listed_at), desc(ListingTable.detected_at))
             .limit(limit)
         )
 
         rows = (await self.session.scalars(stmt)).all()
-        return [
-            ListingItem(
-                listing_id=row.id,
-                market=row.market,
-                skin_id=row.skin_id,
-                skin_name=row.skin_name,
-                price=row.price,
-                currency=row.currency,
-                listed_at=row.listed_at,
-                detected_at=row.detected_at,
-                is_deal=row.is_deal,
-                extreme_underpricing=row.extreme_underpricing,
+        items: list[ListingItem] = []
+        for row in rows:
+            metadata = _parse_metadata(row.metadata_json)
+            items.append(
+                ListingItem(
+                    listing_id=row.id,
+                    market=row.market,
+                    skin_id=row.skin_id,
+                    skin_name=row.skin_name,
+                    price=row.price,
+                    currency=row.currency,
+                    listed_at=row.listed_at,
+                    detected_at=row.detected_at,
+                    is_deal=row.is_deal,
+                    reference_price=metadata.get("reference_market_price"),
+                    image_url=metadata.get("image_url"),
+                    price_source=metadata.get("price_source"),
+                    extreme_underpricing=row.extreme_underpricing,
+                )
             )
-            for row in rows
-        ]
+        return items
 
     async def get_deals(
         self,
@@ -340,7 +366,7 @@ class ListingRepository:
         limit: int = 100,
     ) -> list[ListingTable]:
         since = datetime.now(timezone.utc) - timedelta(hours=since_hours)
-        conditions = [ListingTable.is_deal.is_(True), ListingTable.detected_at >= since]
+        conditions = [ListingTable.is_deal.is_(True), ListingTable.listed_at >= since]
         if market:
             conditions.append(ListingTable.market == market)
 
@@ -350,8 +376,27 @@ class ListingRepository:
                 >= min_discount_pct
             )
 
-        stmt = select(ListingTable).where(and_(*conditions)).order_by(desc(ListingTable.detected_at)).limit(limit)
+        stmt = (
+            select(ListingTable)
+            .where(and_(*conditions))
+            .order_by(
+                desc(
+                    func.coalesce(
+                        ListingTable.discount_vs_buff_pct,
+                        ListingTable.discount_vs_rolling_pct,
+                        0.0,
+                    )
+                ),
+                desc(ListingTable.listed_at),
+            )
+            .limit(limit)
+        )
         return list((await self.session.scalars(stmt)).all())
+
+    async def list_available_markets(self) -> list[str]:
+        stmt = select(ListingTable.market).distinct().order_by(ListingTable.market.asc())
+        values = await self.session.scalars(stmt)
+        return [value for value in values.all() if value]
 
 
 async def clear_all(session: AsyncSession) -> None:

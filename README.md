@@ -61,6 +61,8 @@ pytest
 ## Mock vs Real Providers
 
 By default, `USE_MOCK_PROVIDERS=true`, so all markets generate realistic sample prices/listings without API keys.
+When `CSGOSKINS_PRICE_FALLBACK_ENABLED=true` (default), mock rows are automatically corrected with live
+`csgoskins.gg` market prices/images when data is available.
 
 Adapters exist for:
 

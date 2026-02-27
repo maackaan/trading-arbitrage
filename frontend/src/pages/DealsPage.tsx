@@ -40,7 +40,7 @@ export function DealsPage() {
     <section className="page">
       <h1>Deals feed</h1>
       <p className="muted">
-        Only listings flagged as underpriced against Buff163 and rolling market mean. In mock mode, prices are simulated.
+        Underpriced listings versus Buff163 and rolling market mean. Rows now prefer csgoskins-backed market prices when available.
       </p>
       <div className="filters">
         <label>
@@ -77,15 +77,30 @@ export function DealsPage() {
       <ul className="list">
         {deals.map((deal) => (
           <li key={deal.listing_id} className={deal.extreme_underpricing ? 'item extreme' : 'item'}>
-            <div>
-              <strong>{deal.skin_name}</strong> <span className="muted">({deal.market})</span>
+            <div className="listing-row">
+              {deal.image_url ? <img className="listing-thumb" src={deal.image_url} alt={deal.skin_name} /> : null}
+              <div>
+                <div>
+                  <strong>{deal.skin_name}</strong> <span className="muted">({deal.market})</span>
+                </div>
+                <div className="muted">
+                  Listed: {new Date(deal.listed_at).toLocaleString()}
+                  {deal.price_source ? ` | Source: ${deal.price_source}` : ''}
+                </div>
+                <div className="muted">
+                  Discount vs Buff163:{' '}
+                  {deal.discount_vs_buff_pct !== null ? `${deal.discount_vs_buff_pct.toFixed(2)}%` : 'n/a'}
+                  {deal.discount_vs_rolling_pct !== null ? ` | vs rolling: ${deal.discount_vs_rolling_pct.toFixed(2)}%` : ''}
+                </div>
+              </div>
             </div>
-            <div>
-              {deal.price.toFixed(2)} {deal.currency}
-            </div>
-            <div className="muted">
-              Discount vs Buff163:{' '}
-              {deal.discount_vs_buff_pct !== null ? `${deal.discount_vs_buff_pct.toFixed(2)}%` : 'n/a'}
+            <div className="price-col">
+              <div>
+                {deal.price.toFixed(2)} {deal.currency}
+              </div>
+              {deal.reference_price !== null ? (
+                <div className="muted">Ref: {deal.reference_price.toFixed(2)} USD</div>
+              ) : null}
             </div>
           </li>
         ))}
