@@ -135,6 +135,44 @@ main {
   cursor: pointer;
 }
 
+.button.secondary {
+  background: #475569;
+}
+
+.search-form {
+  max-width: 420px;
+}
+
+.search-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: -0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.chip {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.search-result {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;
