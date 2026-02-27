@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     search_catalog_key: str = "6b86fad2efbfd796e2fdf50271b74a68374d7f750d3c19287ce89c0afa8e753d"
     search_catalog_timeout_seconds: int = 8
     search_catalog_fetch_wears: bool = True
+    catalog_image_refresh_ttl_seconds: int = 21600
     csgoskins_price_fallback_enabled: bool = False
     csgoskins_price_ttl_seconds: int = 180
     csgoskins_price_resolve_ttl_seconds: int = 21600
@@ -45,6 +46,8 @@ class Settings(BaseSettings):
     skinsmonkey_api_key: str = ""
     skinport_api_key: str = ""
     csmoney_api_key: str = ""
+    csmoney_listings_api_url: str = ""
+    csmoney_api_timeout_seconds: int = 10
 
     seed_skins: List[str] = Field(
         default_factory=lambda: [

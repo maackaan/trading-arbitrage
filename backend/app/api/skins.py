@@ -195,11 +195,18 @@ async def skin_summary(
     other_latest = [item.price for item in latest_prices if item.market != "buff163"]
     prediction = predict_price_7d5(buff_points=buff_points, other_market_latest=other_latest)
 
+    image_url = latest_metadata.get("image_url") or (
+        container.catalog_search.image_for_skin_name(skin.name) if container.catalog_search else None
+    )
+    if container.catalog_search:
+        refreshed_image_url = await container.catalog_search.refresh_image_for_skin_name(skin.name)
+        if refreshed_image_url:
+            image_url = refreshed_image_url
+
     return SkinSummary(
         skin=_with_image(Skin(id=skin.id, name=skin.name, created_at=skin.created_at), container),
         baseline_price=baseline,
-        image_url=latest_metadata.get("image_url")
-        or (container.catalog_search.image_for_skin_name(skin.name) if container.catalog_search else None),
+        image_url=image_url,
         latest_prices=latest_prices,
         metrics_by_market=metrics,
         prediction_7d5=prediction,

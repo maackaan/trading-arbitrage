@@ -8,7 +8,12 @@ async function getJson<T>(path: string): Promise<T> {
   return (await res.json()) as T
 }
 
-export async function fetchHealth(): Promise<{ status: string; use_mock_providers: boolean; mock_listings_enabled: boolean }> {
+export async function fetchHealth(): Promise<{
+  status: string
+  use_mock_providers: boolean
+  mock_listings_enabled: boolean
+  csmoney_listings_api_configured: boolean
+}> {
   return getJson('/api/health')
 }
 

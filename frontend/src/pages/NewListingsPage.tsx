@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import { fetchNewListings } from '../api/client'
+import { fetchHealth, fetchNewListings } from '../api/client'
 import { useRealtime } from '../components/useRealtime'
 import type { ListingItem, RealtimeEvent } from '../types'
 
@@ -10,6 +10,7 @@ export function NewListingsPage() {
   const [items, setItems] = useState<ListingItem[]>([])
   const [loading, setLoading] = useState(false)
   const [appliedFilters, setAppliedFilters] = useState({ market: 'csmoney', sinceHours: 6 })
+  const [csmoneyConfigured, setCsmoneyConfigured] = useState(true)
   const { subscribe } = useRealtime()
 
   const load = useCallback(async (filters: { market: string; sinceHours: number }) => {
@@ -38,6 +39,12 @@ export function NewListingsPage() {
       }),
     [appliedFilters, load, subscribe],
   )
+
+  useEffect(() => {
+    void fetchHealth()
+      .then((value) => setCsmoneyConfigured(value.csmoney_listings_api_configured))
+      .catch(() => setCsmoneyConfigured(false))
+  }, [])
 
   return (
     <section className="page">
@@ -101,7 +108,7 @@ export function NewListingsPage() {
       {!loading && items.length === 0 ? (
         <p className="muted">
           No real listings found for this filter.
-          {appliedFilters.market.trim().toLowerCase() === 'csmoney'
+          {appliedFilters.market.trim().toLowerCase() === 'csmoney' && !csmoneyConfigured
             ? ' CS.MONEY direct recent-feed API is not configured, so unverified rows are hidden.'
             : ''}
         </p>

@@ -1,4 +1,10 @@
-from app.services.catalog_search import build_display_name, extract_wears_from_html, infer_default_wears
+from app.services.catalog_search import (
+    _decode_csgoskins_proxy_image_url,
+    _extract_product_image_from_html,
+    build_display_name,
+    extract_wears_from_html,
+    infer_default_wears,
+)
 
 
 def test_extract_wears_orders_standard_exteriors() -> None:
@@ -30,3 +36,27 @@ def test_build_display_name_prefixes_category() -> None:
 
 def test_infer_default_wears_handles_vanilla() -> None:
     assert infer_default_wears("https://csgoskins.gg/items/karambit-vanilla") == ["Vanilla"]
+
+
+def test_decode_csgoskins_proxy_image_url_extracts_source_image() -> None:
+    url = (
+        "https://cdn.csgoskins.gg/public/uih/items/"
+        "aHR0cHM6Ly9jZG4uY3Nnb3NraW5zLmdnL3B1YmxpYy9pbWFnZXMvYnVja2V0cy9lY29uL2RlZmF1bHRfZ2VuZXJhdGVkL3dlYXBvbl9haw=="
+        "/auto/50/85/notrim/hash.webp"
+    )
+    decoded = _decode_csgoskins_proxy_image_url(url)
+    assert decoded is not None
+    assert decoded.startswith("https://")
+
+
+def test_extract_product_image_from_html_prefers_json_ld_image() -> None:
+    html = """
+    <html>
+      <head>
+        <script type="application/ld+json">
+          {"@context":"https://schema.org","@type":"Product","image":"https://cdn.example.com/skin.png"}
+        </script>
+      </head>
+    </html>
+    """
+    assert _extract_product_image_from_html(html) == "https://cdn.example.com/skin.png"

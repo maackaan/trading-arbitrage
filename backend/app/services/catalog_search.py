@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -9,9 +10,10 @@ import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.request import Request, urlopen
+from urllib.parse import unquote
 
 from app.services.search_matching import score_skin_name
-from app.services.wear import WEAR_ORDER
+from app.services.wear import WEAR_ORDER, split_wear_suffix
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,13 @@ DEFAULT_WEAR_OPTIONS = [
     "Well-Worn",
     "Battle-Scarred",
 ]
+WEAR_TO_SLUG = {
+    "Factory New": "factory-new",
+    "Minimal Wear": "minimal-wear",
+    "Field-Tested": "field-tested",
+    "Well-Worn": "well-worn",
+    "Battle-Scarred": "battle-scarred",
+}
 
 
 @dataclass
@@ -49,14 +58,17 @@ class CatalogSearchService:
         timeout_seconds: int = 8,
         fetch_wears: bool = True,
         image_cache_path: str | None = None,
+        image_refresh_ttl_seconds: int = 6 * 3600,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.timeout_seconds = timeout_seconds
         self.fetch_wears_enabled = fetch_wears
         self.image_cache_path = image_cache_path
+        self.image_refresh_ttl_seconds = max(image_refresh_ttl_seconds, 60)
         self._wear_cache: dict[str, tuple[float, list[str]]] = {}
         self._image_cache: dict[str, str] = {}
+        self._image_refresh_cache: dict[str, tuple[float, str | None]] = {}
         self._load_image_cache()
 
     async def search_items(self, query: str, limit: int = 30) -> list[CatalogItem]:
@@ -82,6 +94,7 @@ class CatalogSearchService:
                 continue
             title = build_display_name(raw_title, category)
             image_url = str(hit.get("image_url_primary") or hit.get("image_url_fallback") or "").strip() or None
+            image_url = _upgrade_catalog_image_url(image_url)
             items.append(CatalogItem(title=title, url=url, category=category, image_url=image_url))
             if image_url:
                 self._put_image_cache(title, image_url)
@@ -132,6 +145,39 @@ class CatalogSearchService:
         key = _normalize_name(base_name)
         return self._image_cache.get(key)
 
+    async def refresh_image_for_skin_name(self, skin_name: str) -> str | None:
+        base_name, wear = split_wear_suffix(skin_name.strip())
+        if not base_name:
+            return None
+        if not self.base_url or not self.api_key:
+            return self.image_for_skin_name(skin_name)
+
+        cache_key = f"{_normalize_name(base_name)}::{wear or 'base'}"
+        if cache_key in self._image_refresh_cache:
+            cached_at, cached_value = self._image_refresh_cache[cache_key]
+            if (time.time() - cached_at) < self.image_refresh_ttl_seconds:
+                return cached_value or self.image_for_skin_name(skin_name)
+
+        refreshed: str | None = None
+        try:
+            items = await self.search_items(base_name, limit=8)
+            if items:
+                exact = next((item for item in items if item.title == base_name), None)
+                target = exact or items[0]
+                target_url = _build_variant_url(target.url, wear)
+                html = await asyncio.to_thread(self._get_text, target_url)
+                refreshed = _extract_product_image_from_html(html) or target.image_url
+        except Exception:
+            logger.debug("Failed refreshing high-res image for %s", skin_name)
+
+        refreshed = _upgrade_catalog_image_url(refreshed)
+        if refreshed:
+            self._put_image_cache(base_name, refreshed)
+            self._save_image_cache()
+
+        self._image_refresh_cache[cache_key] = (time.time(), refreshed)
+        return refreshed or self.image_for_skin_name(skin_name)
+
     async def fetch_wears_for_item(self, item_url: str) -> list[str]:
         if not self.fetch_wears_enabled:
             return []
@@ -177,9 +223,10 @@ class CatalogSearchService:
     def _put_image_cache(self, skin_name: str, image_url: str) -> None:
         base_name = _base_name_from_skin_name(skin_name)
         key = _normalize_name(base_name)
-        if not key or not image_url:
+        upgraded = _upgrade_catalog_image_url(image_url)
+        if not key or not upgraded:
             return
-        self._image_cache[key] = image_url
+        self._image_cache[key] = upgraded
 
     def _load_image_cache(self) -> None:
         if not self.image_cache_path:
@@ -193,8 +240,9 @@ class CatalogSearchService:
                 for key, value in payload.items():
                     if not isinstance(key, str) or not isinstance(value, str):
                         continue
-                    if key and value:
-                        self._image_cache[key] = value
+                    normalized = _upgrade_catalog_image_url(value)
+                    if key and normalized:
+                        self._image_cache[key] = normalized
         except Exception:
             logger.debug("Failed loading image cache from %s", self.image_cache_path)
 
@@ -260,3 +308,69 @@ def _base_name_from_skin_name(name: str) -> str:
 
 def _normalize_name(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", (name or "").lower())
+
+
+def _build_variant_url(item_url: str, wear: str | None) -> str:
+    if not wear or wear == "Vanilla":
+        return item_url
+    slug = WEAR_TO_SLUG.get(wear)
+    if not slug:
+        return item_url
+    return f"{item_url}/{slug}"
+
+
+def _extract_product_image_from_html(html: str) -> str | None:
+    scripts = re.findall(r'<script type="application/ld\+json">(.*?)</script>', html, re.S)
+    for script in scripts:
+        text = script.strip()
+        if not text:
+            continue
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict) or payload.get("@type") != "Product":
+            continue
+        image = payload.get("image")
+        if isinstance(image, str):
+            value = image.strip()
+            if value:
+                return _upgrade_catalog_image_url(value)
+        if isinstance(image, list):
+            for item in image:
+                value = str(item).strip()
+                if value:
+                    return _upgrade_catalog_image_url(value)
+    return None
+
+
+def _upgrade_catalog_image_url(image_url: str | None) -> str | None:
+    if not image_url:
+        return None
+    decoded = _decode_csgoskins_proxy_image_url(image_url)
+    return _sanitize_image_url(decoded or image_url)
+
+
+def _decode_csgoskins_proxy_image_url(image_url: str) -> str | None:
+    match = re.search(r"/public/uih/items/([^/]+)/", image_url)
+    if not match:
+        return None
+
+    token = unquote(match.group(1)).strip()
+    if not token:
+        return None
+    padded = token + ("=" * ((4 - (len(token) % 4)) % 4))
+
+    for decoder in (base64.urlsafe_b64decode, base64.b64decode):
+        try:
+            raw = decoder(padded.encode("ascii"))
+            decoded = raw.decode("utf-8", "ignore").strip()
+        except Exception:
+            continue
+        if decoded.startswith("https://") or decoded.startswith("http://"):
+            return _sanitize_image_url(decoded)
+    return None
+
+
+def _sanitize_image_url(value: str) -> str:
+    return value.strip().strip("\"'<>")

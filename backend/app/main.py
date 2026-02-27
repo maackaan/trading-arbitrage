@@ -42,6 +42,7 @@ async def lifespan(app: FastAPI):
             timeout_seconds=settings.search_catalog_timeout_seconds,
             fetch_wears=settings.search_catalog_fetch_wears,
             image_cache_path=settings.catalog_image_cache_path,
+            image_refresh_ttl_seconds=settings.catalog_image_refresh_ttl_seconds,
         )
     realtime = RealtimeManager()
     deal_detection = DealDetectionService()

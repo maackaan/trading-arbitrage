@@ -86,6 +86,9 @@ def build_providers(settings: Settings) -> list[BaseProvider]:
             mock_engine=mock_engine,
             rate_limit_seconds=_rate(settings, "csmoney"),
             csgoskins_price_service=csgoskins_price_service,
+            api_key=settings.csmoney_api_key,
+            listings_api_url=settings.csmoney_listings_api_url,
+            timeout_seconds=settings.csmoney_api_timeout_seconds,
         ),
     ]
 

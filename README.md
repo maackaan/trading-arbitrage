@@ -64,6 +64,7 @@ By default, `USE_MOCK_PROVIDERS=true`, so markets generate sample price snapshot
 Mock listings are disabled by default (`MOCK_LISTINGS_ENABLED=false`) so Deals/New Listings never show fake rows.
 `CSGOSKINS_PRICE_FALLBACK_ENABLED=false` by default to avoid csgoskins item-page rate limits.
 Skin images are fetched from the csgoskins search index and cached locally at `backend/skin_images_cache.json`.
+When a skin/wear is selected, backend refreshes the image from the item page and upgrades to source-resolution when available.
 
 Adapters exist for:
 
@@ -79,7 +80,11 @@ Adapters exist for:
 
 When `USE_MOCK_PROVIDERS=false`, adapters intentionally return empty data until official API integrations are implemented.
 No ToS-violating scraping is included.
-Real CS.MONEY listings/deals require an official listing feed integration.
+Real CS.MONEY listings/deals require a configured official API endpoint:
+
+- `CSMONEY_LISTINGS_API_URL`
+- `CSMONEY_API_KEY` (if required by that endpoint)
+- `CSMONEY_API_TIMEOUT_SECONDS`
 
 ## Search Behavior
 

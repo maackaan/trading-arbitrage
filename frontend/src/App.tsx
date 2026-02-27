@@ -14,7 +14,11 @@ function App() {
 
   useEffect(() => {
     void fetchHealth()
-      .then((data) => setHealth(`${data.status}${data.use_mock_providers ? ' (mock mode)' : ''}`))
+      .then((data) => {
+        const mode = data.use_mock_providers ? 'mock mode' : 'real mode'
+        const csmoney = data.csmoney_listings_api_configured ? 'csmoney:on' : 'csmoney:off'
+        setHealth(`${data.status} (${mode}, ${csmoney})`)
+      })
       .catch(() => setHealth('backend unavailable'))
   }, [])
 
