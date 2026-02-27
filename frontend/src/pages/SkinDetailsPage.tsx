@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import {
   CartesianGrid,
   Legend,
@@ -11,9 +11,9 @@ import {
   YAxis,
 } from 'recharts'
 
-import { fetchSkinPrices, fetchSkinSummary } from '../api/client'
+import { fetchSkinPrices, fetchSkinSummary, fetchSkinVariants } from '../api/client'
 import { useRealtime } from '../components/useRealtime'
-import type { PricePoint, RealtimeEvent, SkinSummary } from '../types'
+import type { PricePoint, RealtimeEvent, Skin, SkinSummary } from '../types'
 
 const palette = ['#1f77b4', '#2ca02c', '#ff7f0e', '#d62728', '#17becf', '#9467bd', '#8c564b', '#e377c2']
 
@@ -36,6 +36,7 @@ export function SkinDetailsPage() {
   const parsedSkinId = Number(skinId)
   const [summary, setSummary] = useState<SkinSummary | null>(null)
   const [points, setPoints] = useState<PricePoint[]>([])
+  const [wearOptions, setWearOptions] = useState<Array<{ wear: string; skin: Skin }>>([])
   const [loading, setLoading] = useState(false)
   const { connected, subscribe, lastEventAt } = useRealtime()
 
@@ -49,6 +50,12 @@ export function SkinDetailsPage() {
       ])
       setSummary(nextSummary)
       setPoints(nextPoints)
+      try {
+        const variantPayload = await fetchSkinVariants(parsedSkinId)
+        setWearOptions(variantPayload.wear_options)
+      } catch {
+        setWearOptions([])
+      }
     } finally {
       setLoading(false)
     }
@@ -135,6 +142,23 @@ export function SkinDetailsPage() {
           )}
         </article>
       </div>
+
+      {wearOptions.length > 0 ? (
+        <article className="card">
+          <h2>Switch wear</h2>
+          <div className="chip-row">
+            {wearOptions.map((option) => (
+              <Link
+                key={option.skin.id}
+                to={`/skins/${option.skin.id}`}
+                className={`chip-link ${option.skin.id === summary.skin.id ? 'active' : ''}`}
+              >
+                {option.wear}
+              </Link>
+            ))}
+          </div>
+        </article>
+      ) : null}
 
       <article className="card">
         <h2>Metrics</h2>

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Sequence
 
 from app.domain.models import ProviderListing, ProviderPrice
+from app.services.wear import has_wear_suffix
 from app.storage.db import SkinTable
 
 
@@ -67,15 +68,21 @@ class MockMarketEngine:
     def generate_listings(self, market: str, skins: Sequence[SkinTable]) -> list[ProviderListing]:
         now = datetime.now(timezone.utc)
         listings: list[ProviderListing] = []
-        for skin in skins:
-            if self.random.random() > 0.20:
+        candidate_skins = [skin for skin in skins if has_wear_suffix(skin.name)]
+        if not candidate_skins:
+            candidate_skins = list(skins)
+
+        for skin in candidate_skins:
+            if self.random.random() > 0.12:
                 continue
 
             self._listing_counter += 1
             baseline = self.next_price("buff163", skin.name)
-            discount_factor = self.random.uniform(0.7, 1.05)
-            if self.random.random() < 0.08:
-                discount_factor = self.random.uniform(0.5, 0.68)
+            discount_factor = self.random.uniform(0.94, 1.08)
+            if self.random.random() < 0.20:
+                discount_factor = self.random.uniform(0.78, 0.92)
+            if self.random.random() < 0.04:
+                discount_factor = self.random.uniform(0.55, 0.72)
 
             listing_price = round(max(0.5, baseline * discount_factor), 2)
             listings.append(

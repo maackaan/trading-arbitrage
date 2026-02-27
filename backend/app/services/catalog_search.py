@@ -10,17 +10,9 @@ from typing import Any
 from urllib.request import Request, urlopen
 
 from app.services.search_matching import score_skin_name
+from app.services.wear import WEAR_ORDER
 
 logger = logging.getLogger(__name__)
-
-WEAR_ORDER = {
-    "Factory New": 0,
-    "Minimal Wear": 1,
-    "Field-Tested": 2,
-    "Well-Worn": 3,
-    "Battle-Scarred": 4,
-    "Vanilla": 5,
-}
 
 WEAR_FROM_SLUG = {
     "factory-new": "Factory New",

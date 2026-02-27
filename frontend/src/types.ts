@@ -16,6 +16,15 @@ export type SkinSearchResponse = {
   results: Skin[]
 }
 
+export type SkinVariantsResponse = {
+  skin: Skin
+  base_name: string
+  wear_options: {
+    wear: string
+    skin: Skin
+  }[]
+}
+
 export type PricePoint = {
   market: string
   price: number

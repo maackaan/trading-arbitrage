@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models import ListingItem, MarketSummary, PricePoint, Skin
 from app.services.search_matching import score_skin_name, suggest_skin_names
+from app.services.wear import WEAR_ORDER, split_wear_suffix
 from app.storage.db import ListingTable, PriceSnapshotTable, SkinTable
 
 
@@ -53,6 +54,27 @@ class SkinRepository:
             return []
         await self.seed_skins(unique_names)
         return await self.get_by_names(unique_names)
+
+    async def get_wear_variants(self, base_name: str) -> list[Skin]:
+        stmt = (
+            select(SkinTable)
+            .where(SkinTable.name.ilike(f"{base_name} (%)"))
+            .order_by(SkinTable.name.asc())
+        )
+        rows = (await self.session.scalars(stmt)).all()
+        parsed: list[tuple[int, Skin]] = []
+        for row in rows:
+            _, wear = split_wear_suffix(row.name)
+            if wear is None:
+                continue
+            parsed.append(
+                (
+                    WEAR_ORDER.get(wear, 99),
+                    Skin(id=row.id, name=row.name, created_at=row.created_at),
+                )
+            )
+        parsed.sort(key=lambda pair: pair[0])
+        return [skin for _, skin in parsed]
 
     async def search(
         self, query: str, limit: int = 25

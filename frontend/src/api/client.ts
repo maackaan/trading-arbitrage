@@ -1,4 +1,4 @@
-import type { DealItem, ListingItem, PricePoint, SkinSearchResponse, SkinSummary } from '../types'
+import type { DealItem, ListingItem, PricePoint, SkinSearchResponse, SkinSummary, SkinVariantsResponse } from '../types'
 
 async function getJson<T>(path: string): Promise<T> {
   const res = await fetch(path)
@@ -28,6 +28,10 @@ export async function fetchSkinPrices(skinId: number, range = '72h'): Promise<Pr
   const encodedRange = encodeURIComponent(range)
   const payload = await getJson<{ points: PricePoint[] }>(`/api/skins/${skinId}/prices?range=${encodedRange}`)
   return payload.points
+}
+
+export async function fetchSkinVariants(skinId: number): Promise<SkinVariantsResponse> {
+  return getJson(`/api/skins/${skinId}/variants`)
 }
 
 export async function fetchDeals(params: { market?: string; minDiscount?: number } = {}): Promise<DealItem[]> {

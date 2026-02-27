@@ -37,6 +37,7 @@ export function NewListingsPage() {
   return (
     <section className="page">
       <h1>New listings</h1>
+      <p className="muted">All newly seen listings (deal and non-deal).</p>
       <div className="filters">
         <label>
           Market
@@ -57,7 +58,9 @@ export function NewListingsPage() {
             <div>
               {item.price.toFixed(2)} {item.currency}
             </div>
-            <div className="muted">Listed: {new Date(item.listed_at).toLocaleString()}</div>
+            <div className="muted">
+              Listed: {new Date(item.listed_at).toLocaleString()} {item.is_deal ? '| Deal' : '| Normal'}
+            </div>
           </li>
         ))}
       </ul>

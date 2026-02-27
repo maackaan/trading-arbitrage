@@ -6,7 +6,7 @@ import type { DealItem, RealtimeEvent } from '../types'
 
 export function DealsPage() {
   const [market, setMarket] = useState('')
-  const [minDiscount, setMinDiscount] = useState(10)
+  const [minDiscount, setMinDiscount] = useState(12)
   const [deals, setDeals] = useState<DealItem[]>([])
   const [loading, setLoading] = useState(false)
   const { subscribe } = useRealtime()
@@ -38,6 +38,7 @@ export function DealsPage() {
   return (
     <section className="page">
       <h1>Deals feed</h1>
+      <p className="muted">Only listings flagged as underpriced against Buff163 and rolling market mean.</p>
       <div className="filters">
         <label>
           Market

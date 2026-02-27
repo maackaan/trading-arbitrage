@@ -9,7 +9,8 @@ from app.providers.base import BaseProvider
 from app.services.deal_detection import DealDetectionService
 from app.services.pricing_metrics import rolling_mean
 from app.services.realtime import RealtimeManager
-from app.storage.db import AsyncSession
+from app.services.wear import PREFERRED_LISTING_WEAR, has_wear_suffix, split_wear_suffix
+from app.storage.db import AsyncSession, SkinTable
 from app.storage.repositories import ListingRepository, PriceRepository, SkinRepository
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,22 @@ class AggregationService:
         self.realtime = realtime
         self.deal_detection = deal_detection
         self.listing_refresh_interval_seconds = listing_refresh_interval_seconds
+
+    @staticmethod
+    def _resolve_listing_skin(skin_by_name: dict[str, SkinTable], source_skin_name: str):
+        skin = skin_by_name.get(source_skin_name)
+        if skin is None:
+            return None
+        if has_wear_suffix(skin.name):
+            return skin
+
+        base_name, _ = split_wear_suffix(skin.name)
+        variants = []
+        for wear in PREFERRED_LISTING_WEAR:
+            candidate = skin_by_name.get(f"{base_name} ({wear})")
+            if candidate is not None:
+                variants.append(candidate)
+        return variants[0] if variants else skin
 
     async def refresh_once(self) -> None:
         now = datetime.now(timezone.utc)
@@ -84,7 +101,7 @@ class AggregationService:
                 listings = await provider.fetch_new_listings(skins, since=None)
                 provider.mark_listing_refresh(now)
                 for listing in listings:
-                    skin = skin_by_name.get(listing.skin_name)
+                    skin = self._resolve_listing_skin(skin_by_name, listing.skin_name)
                     if skin is None:
                         continue
 
@@ -110,7 +127,7 @@ class AggregationService:
                         external_id=listing.external_id,
                         market=listing.market,
                         skin_id=skin.id,
-                        skin_name=listing.skin_name,
+                        skin_name=skin.name,
                         price=listing.price,
                         currency=listing.currency,
                         listed_at=listing.listed_at,

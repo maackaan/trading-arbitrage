@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api", tags=["deals"])
 @router.get("/deals", response_model=list[DealItem])
 async def get_deals(
     market: str | None = Query(default=None),
-    min_discount: float = Query(default=0.0, ge=0.0),
+    min_discount: float = Query(default=12.0, ge=0.0),
     limit: int = Query(default=100, ge=1, le=500),
     session: AsyncSession = Depends(get_session),
 ) -> list[DealItem]:

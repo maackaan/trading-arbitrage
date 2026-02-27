@@ -26,6 +26,12 @@ class SkinSearchResponse(BaseModel):
     results: List[Skin] = Field(default_factory=list)
 
 
+class SkinVariantsResponse(BaseModel):
+    skin: Skin
+    base_name: str
+    wear_options: List[WearOption] = Field(default_factory=list)
+
+
 class ProviderPrice(BaseModel):
     market: str
     skin_name: str

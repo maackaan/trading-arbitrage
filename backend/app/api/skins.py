@@ -7,10 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_container, get_session
 from app.core.container import AppContainer
-from app.domain.models import MetricBundle, Skin, SkinSearchResponse, SkinSummary, WearOption
-from app.services.catalog_search import WEAR_ORDER
+from app.domain.models import MetricBundle, Skin, SkinSearchResponse, SkinSummary, SkinVariantsResponse, WearOption
 from app.services.prediction import predict_price_7d5
 from app.services.pricing_metrics import rolling_mean, safe_mean, spread_pct
+from app.services.wear import WEAR_ORDER, split_wear_suffix
 from app.storage.repositories import PriceRepository, SkinRepository
 
 router = APIRouter(prefix="/api/skins", tags=["skins"])
@@ -169,4 +169,45 @@ async def skin_summary(
         latest_prices=latest_prices,
         metrics_by_market=metrics,
         prediction_7d5=prediction,
+    )
+
+
+@router.get("/{skin_id}/variants", response_model=SkinVariantsResponse)
+async def skin_variants(
+    skin_id: int,
+    session: AsyncSession = Depends(get_session),
+    container: AppContainer = Depends(get_container),
+) -> SkinVariantsResponse:
+    skin_repo = SkinRepository(session)
+    skin = await skin_repo.get(skin_id)
+    if skin is None:
+        raise HTTPException(status_code=404, detail="Skin not found")
+
+    base_name, _ = split_wear_suffix(skin.name)
+    variants = await skin_repo.get_wear_variants(base_name)
+
+    if not variants and container.catalog_search:
+        items = await container.catalog_search.search_items(base_name, limit=10)
+        best = next((item for item in items if item.title == base_name), items[0] if items else None)
+        if best:
+            wears = await container.catalog_search.fetch_wears_for_item(best.url)
+            names = [f"{best.title} ({wear})" for wear in wears if wear != "Vanilla"]
+            if names:
+                await skin_repo.ensure_by_names(names)
+                variants = await skin_repo.get_wear_variants(best.title)
+                base_name = best.title
+
+    wear_options: list[WearOption] = []
+    for variant in variants:
+        _, wear = split_wear_suffix(variant.name)
+        if wear is None:
+            continue
+        wear_options.append(WearOption(wear=wear, skin=variant))
+
+    wear_options.sort(key=lambda item: WEAR_ORDER.get(item.wear, 99))
+
+    return SkinVariantsResponse(
+        skin=Skin(id=skin.id, name=skin.name, created_at=skin.created_at),
+        base_name=base_name,
+        wear_options=wear_options,
     )
