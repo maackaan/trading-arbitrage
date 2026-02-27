@@ -134,7 +134,11 @@ class CSGOSkinsPriceService:
             if cached is not _CACHE_MISS:
                 return cached
 
-            snapshot = await self._load_skin_snapshot_uncached(skin_name)
+            try:
+                snapshot = await self._load_skin_snapshot_uncached(skin_name)
+            except Exception:
+                logger.exception("Failed loading csgoskins snapshot for %s", skin_name)
+                snapshot = None
             self._cache_set(
                 self._snapshot_cache,
                 cache_key,
