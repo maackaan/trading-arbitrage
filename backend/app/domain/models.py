@@ -12,6 +12,13 @@ class Skin(BaseModel):
     created_at: datetime
 
 
+class SkinSearchResponse(BaseModel):
+    query: str
+    corrected_query: Optional[str] = None
+    suggestions: List[str] = Field(default_factory=list)
+    results: List[Skin] = Field(default_factory=list)
+
+
 class ProviderPrice(BaseModel):
     market: str
     skin_name: str

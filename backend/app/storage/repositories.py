@@ -8,7 +8,12 @@ from sqlalchemy import Select, and_, delete, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models import ListingItem, MarketSummary, PricePoint, Skin
+from app.services.search_matching import score_skin_name, suggest_skin_names
 from app.storage.db import ListingTable, PriceSnapshotTable, SkinTable
+
+
+def _score_row(query: str, skin_name: str) -> float:
+    return score_skin_name(query, skin_name)
 
 
 class SkinRepository:
@@ -31,15 +36,27 @@ class SkinRepository:
         result = await self.session.scalars(select(SkinTable).order_by(SkinTable.name.asc()))
         return list(result.all())
 
-    async def search(self, query: str, limit: int = 25) -> list[Skin]:
-        stmt = (
-            select(SkinTable)
-            .where(SkinTable.name.ilike(f"%{query}%"))
-            .order_by(SkinTable.name.asc())
-            .limit(limit)
+    async def search(
+        self, query: str, limit: int = 25
+    ) -> tuple[list[Skin], list[str], str | None]:
+        rows = (await self.session.scalars(select(SkinTable).order_by(SkinTable.name.asc()))).all()
+        scored = sorted(
+            ((score, row) for row in rows if (score := _score_row(query, row.name)) > 0),
+            key=lambda pair: pair[0],
+            reverse=True,
         )
-        result = await self.session.scalars(stmt)
-        return [Skin(id=row.id, name=row.name, created_at=row.created_at) for row in result.all()]
+        results = [
+            Skin(id=row.id, name=row.name, created_at=row.created_at)
+            for score, row in scored[:limit]
+            if score >= 45.0
+        ]
+
+        suggestions = suggest_skin_names(query, (row.name for row in rows), limit=5)
+        corrected_query = None
+        if suggestions and query.strip().lower() != suggestions[0].strip().lower():
+            corrected_query = suggestions[0]
+
+        return results, suggestions, corrected_query
 
     async def get(self, skin_id: int) -> SkinTable | None:
         return await self.session.get(SkinTable, skin_id)

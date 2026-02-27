@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
-from app.domain.models import MetricBundle, Skin, SkinSummary
+from app.domain.models import MetricBundle, Skin, SkinSearchResponse, SkinSummary
 from app.services.prediction import predict_price_7d5
 from app.services.pricing_metrics import rolling_mean, safe_mean, spread_pct
 from app.storage.repositories import PriceRepository, SkinRepository
@@ -31,13 +31,19 @@ def _parse_range(value: str | None, default_hours: int = 72) -> timedelta:
         return timedelta(hours=default_hours)
 
 
-@router.get("/search", response_model=list[Skin])
+@router.get("/search", response_model=SkinSearchResponse)
 async def search_skins(
     q: str = Query(min_length=1, max_length=100),
     session: AsyncSession = Depends(get_session),
-) -> list[Skin]:
+) -> SkinSearchResponse:
     skin_repo = SkinRepository(session)
-    return await skin_repo.search(q)
+    results, suggestions, corrected_query = await skin_repo.search(q)
+    return SkinSearchResponse(
+        query=q,
+        corrected_query=corrected_query,
+        suggestions=suggestions,
+        results=results,
+    )
 
 
 @router.get("/{skin_id}/prices")

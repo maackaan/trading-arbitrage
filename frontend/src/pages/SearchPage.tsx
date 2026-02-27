@@ -14,6 +14,8 @@ const EXAMPLE_QUERIES = [
 export function SearchPage() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Skin[]>([])
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [correctedQuery, setCorrectedQuery] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasSearched, setHasSearched] = useState(false)
@@ -22,6 +24,8 @@ export function SearchPage() {
     const trimmed = value.trim()
     if (!trimmed) {
       setResults([])
+      setSuggestions([])
+      setCorrectedQuery(null)
       setHasSearched(false)
       setError(null)
       return
@@ -30,8 +34,10 @@ export function SearchPage() {
     setLoading(true)
     setError(null)
     try {
-      const rows = await searchSkins(trimmed)
-      setResults(rows)
+      const response = await searchSkins(trimmed)
+      setResults(response.results)
+      setSuggestions(response.suggestions)
+      setCorrectedQuery(response.corrected_query)
       setHasSearched(true)
     } catch {
       setError('Search failed. Check if backend is running.')
@@ -74,6 +80,8 @@ export function SearchPage() {
             onClick={() => {
               setQuery('')
               setResults([])
+              setSuggestions([])
+              setCorrectedQuery(null)
               setHasSearched(false)
               setError(null)
             }}
@@ -100,6 +108,29 @@ export function SearchPage() {
       </div>
       {loading ? <p className="muted">Searching...</p> : null}
       {error ? <p className="muted">{error}</p> : null}
+      {correctedQuery ? (
+        <p className="muted">
+          Interpreting this as <strong>{correctedQuery}</strong>.
+        </p>
+      ) : null}
+      {suggestions.length > 0 ? (
+        <div className="suggestions">
+          <span className="muted">Did you mean:</span>
+          {suggestions.slice(0, 5).map((item) => (
+            <button
+              key={item}
+              className="chip"
+              type="button"
+              onClick={() => {
+                setQuery(item)
+                void runSearch(item)
+              }}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {hasSearched && !loading && !error && results.length === 0 ? (
         <p className="muted">No skins matched “{query.trim()}”. Try a broader term like “AK-47” or “Asiimov”.</p>
       ) : null}

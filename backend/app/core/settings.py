@@ -38,11 +38,31 @@ class Settings(BaseSettings):
     seed_skins: List[str] = Field(
         default_factory=lambda: [
             "AK-47 | Redline (Field-Tested)",
+            "AK-47 | Vulcan (Field-Tested)",
+            "AK-47 | Asiimov (Field-Tested)",
             "AWP | Asiimov (Battle-Scarred)",
+            "AWP | Dragon Lore (Field-Tested)",
+            "AWP | Hyper Beast (Minimal Wear)",
             "M4A4 | The Emperor (Minimal Wear)",
+            "M4A4 | Howl (Field-Tested)",
+            "M4A1-S | Printstream (Field-Tested)",
+            "M4A1-S | Hyper Beast (Factory New)",
             "Desert Eagle | Printstream (Field-Tested)",
+            "Desert Eagle | Blaze (Factory New)",
             "USP-S | Kill Confirmed (Field-Tested)",
+            "USP-S | Cortex (Factory New)",
             "Glock-18 | Water Elemental (Factory New)",
+            "Glock-18 | Fade (Factory New)",
+            "Karambit | Doppler (Factory New)",
+            "Karambit | Tiger Tooth (Factory New)",
+            "M9 Bayonet | Crimson Web (Field-Tested)",
+            "M9 Bayonet | Fade (Factory New)",
+            "Butterfly Knife | Slaughter (Minimal Wear)",
+            "Butterfly Knife | Doppler (Factory New)",
+            "Bayonet | Marble Fade (Factory New)",
+            "Falchion Knife | Damascus Steel (Minimal Wear)",
+            "Gut Knife | Lore (Field-Tested)",
+            "Stiletto Knife | Damascus Steel (Minimal Wear)",
         ]
     )
 

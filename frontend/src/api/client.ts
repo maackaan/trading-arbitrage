@@ -1,4 +1,4 @@
-import type { DealItem, ListingItem, PricePoint, Skin, SkinSummary } from '../types'
+import type { DealItem, ListingItem, PricePoint, SkinSearchResponse, SkinSummary } from '../types'
 
 async function getJson<T>(path: string): Promise<T> {
   const res = await fetch(path)
@@ -12,9 +12,9 @@ export async function fetchHealth(): Promise<{ status: string; use_mock_provider
   return getJson('/api/health')
 }
 
-export async function searchSkins(query: string): Promise<Skin[]> {
+export async function searchSkins(query: string): Promise<SkinSearchResponse> {
   if (!query.trim()) {
-    return []
+    return { query, corrected_query: null, suggestions: [], results: [] }
   }
   const encoded = encodeURIComponent(query.trim())
   return getJson(`/api/skins/search?q=${encoded}`)

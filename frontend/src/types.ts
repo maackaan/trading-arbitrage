@@ -4,6 +4,13 @@ export type Skin = {
   created_at: string
 }
 
+export type SkinSearchResponse = {
+  query: string
+  corrected_query: string | null
+  suggestions: string[]
+  results: Skin[]
+}
+
 export type PricePoint = {
   market: string
   price: number
