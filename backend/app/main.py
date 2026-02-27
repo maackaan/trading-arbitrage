@@ -53,6 +53,7 @@ async def lifespan(app: FastAPI):
         realtime=realtime,
         deal_detection=deal_detection,
         listing_refresh_interval_seconds=settings.listing_refresh_interval_seconds,
+        listing_since_hours=settings.listing_since_hours,
     )
     scheduler = RefreshScheduler(aggregation, settings.refresh_interval_seconds)
 

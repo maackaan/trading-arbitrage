@@ -22,6 +22,7 @@ class Settings(BaseSettings):
 
     refresh_interval_seconds: int = 10
     listing_refresh_interval_seconds: int = 8
+    listing_since_hours: int = 6
     default_history_hours: int = 72
     search_catalog_provider: str = "csgoskins_gg"
     search_catalog_url: str = "https://search.csgoskins.gg"
@@ -48,6 +49,9 @@ class Settings(BaseSettings):
     csmoney_api_key: str = ""
     csmoney_listings_api_url: str = ""
     csmoney_api_timeout_seconds: int = 10
+    csmoney_listings_sort: str = "insertDate"
+    csmoney_listings_order: str = "desc"
+    csmoney_listings_limit: int = 120
 
     seed_skins: List[str] = Field(
         default_factory=lambda: [

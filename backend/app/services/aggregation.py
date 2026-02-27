@@ -25,12 +25,14 @@ class AggregationService:
         realtime: RealtimeManager,
         deal_detection: DealDetectionService,
         listing_refresh_interval_seconds: int,
+        listing_since_hours: int,
     ) -> None:
         self.session_factory = session_factory
         self.providers = providers
         self.realtime = realtime
         self.deal_detection = deal_detection
         self.listing_refresh_interval_seconds = listing_refresh_interval_seconds
+        self.listing_since_hours = max(listing_since_hours, 1)
 
     @staticmethod
     def _resolve_listing_skin(skin_by_name: dict[str, SkinTable], source_skin_name: str):
@@ -98,7 +100,10 @@ class AggregationService:
                 if not provider.can_refresh_listings(now, self.listing_refresh_interval_seconds):
                     continue
 
-                listings = await provider.fetch_new_listings(skins, since=None)
+                listings = await provider.fetch_new_listings(
+                    skins,
+                    since=now - timedelta(hours=self.listing_since_hours),
+                )
                 provider.mark_listing_refresh(now)
                 for listing in listings:
                     skin = self._resolve_listing_skin(skin_by_name, listing.skin_name)

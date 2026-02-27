@@ -85,6 +85,10 @@ Real CS.MONEY listings/deals require a configured official API endpoint:
 - `CSMONEY_LISTINGS_API_URL`
 - `CSMONEY_API_KEY` (if required by that endpoint)
 - `CSMONEY_API_TIMEOUT_SECONDS`
+- `CSMONEY_LISTINGS_SORT` (default: `insertDate`)
+- `CSMONEY_LISTINGS_ORDER` (default: `desc`)
+- `CSMONEY_LISTINGS_LIMIT` (default: `120`)
+- `LISTING_SINCE_HOURS` (time window sent to provider as `since`/`sinceIso`)
 
 ## Search Behavior
 

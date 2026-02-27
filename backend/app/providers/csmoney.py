@@ -5,6 +5,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from typing import Any, Sequence
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
 from app.domain.models import ProviderListing
@@ -29,6 +30,9 @@ class CSMoneyProvider(StubOrMockProvider):
         api_key: str = "",
         listings_api_url: str = "",
         timeout_seconds: int = 10,
+        listings_sort: str = "insertDate",
+        listings_order: str = "desc",
+        listings_limit: int = 120,
     ) -> None:
         super().__init__(
             market_name="csmoney",
@@ -40,6 +44,9 @@ class CSMoneyProvider(StubOrMockProvider):
         self.api_key = api_key.strip()
         self.listings_api_url = listings_api_url.strip()
         self.timeout_seconds = max(timeout_seconds, 3)
+        self.listings_sort = (listings_sort or "insertDate").strip()
+        self.listings_order = (listings_order or "desc").strip().lower()
+        self.listings_limit = max(int(listings_limit), 1)
         self._logged_missing_config = False
 
     @property
@@ -63,7 +70,8 @@ class CSMoneyProvider(StubOrMockProvider):
             return []
 
         try:
-            payload = await asyncio.to_thread(self._fetch_json, self.listings_api_url)
+            request_url = self._build_request_url(since)
+            payload = await asyncio.to_thread(self._fetch_json, request_url)
         except Exception:
             logger.warning("CSMoney listings request failed", exc_info=True)
             return []
@@ -72,15 +80,36 @@ class CSMoneyProvider(StubOrMockProvider):
         rows: list[ProviderListing] = []
         for item in _iter_listing_items(payload):
             external_id = _string_or_none(item, "id", "listing_id", "asset_id", "offer_id")
-            skin_name = _string_or_none(item, "skin_name", "market_hash_name", "name", "full_name")
-            price = _float_or_none(item, "price", "price_usd", "usd_price", "amount")
+            skin_name = _string_or_none(
+                item,
+                "skin_name",
+                "market_hash_name",
+                "marketHashName",
+                "name",
+                "full_name",
+                "fullName",
+            )
+            price = _extract_price(item)
             if not external_id or not skin_name or price is None or price <= 0:
                 continue
 
-            listed_at_raw = _string_or_none(item, "listed_at", "created_at", "insert_date", "insertDate")
+            listed_at_raw = _string_or_none(
+                item,
+                "listed_at",
+                "created_at",
+                "insert_date",
+                "insertDate",
+            )
             listed_at = _parse_datetime(listed_at_raw) or now
-            image_url = _string_or_none(item, "image_url", "image", "preview_image")
-            item_url = _string_or_none(item, "item_url", "url", "listing_url")
+            image_url = _string_or_none(
+                item,
+                "image_url",
+                "imageUrl",
+                "image",
+                "preview_image",
+                "previewImage",
+            )
+            item_url = _string_or_none(item, "item_url", "itemUrl", "url", "listing_url", "listingUrl")
             currency = _string_or_none(item, "currency") or "USD"
 
             rows.append(
@@ -104,6 +133,19 @@ class CSMoneyProvider(StubOrMockProvider):
         rows.sort(key=lambda row: row.listed_at, reverse=True)
         return rows
 
+    def _build_request_url(self, since: datetime | None) -> str:
+        parsed = urlparse(self.listings_api_url)
+        query_pairs = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        query_pairs.setdefault("order", self.listings_order)
+        query_pairs.setdefault("sort", self.listings_sort)
+        query_pairs.setdefault("limit", str(self.listings_limit))
+        if since:
+            since_iso = since.astimezone(timezone.utc).isoformat()
+            query_pairs.setdefault("since", since_iso)
+            query_pairs.setdefault("sinceIso", since_iso)
+        rebuilt = parsed._replace(query=urlencode(query_pairs))
+        return urlunparse(rebuilt)
+
     def _fetch_json(self, url: str) -> Any:
         headers = {
             "Accept": "application/json",
@@ -126,6 +168,11 @@ def _iter_listing_items(payload: Any) -> list[dict[str, Any]]:
         value = payload.get(key)
         if isinstance(value, list):
             return [item for item in value if isinstance(item, dict)]
+        if isinstance(value, dict):
+            for nested in ("items", "listings", "results"):
+                rows = value.get(nested)
+                if isinstance(rows, list):
+                    return [item for item in rows if isinstance(item, dict)]
     return []
 
 
@@ -149,6 +196,39 @@ def _float_or_none(payload: dict[str, Any], *keys: str) -> float | None:
             return float(value)
         except (TypeError, ValueError):
             continue
+    return None
+
+
+def _extract_price(payload: dict[str, Any]) -> float | None:
+    direct = _float_or_none(
+        payload,
+        "price",
+        "price_usd",
+        "priceUsd",
+        "usd_price",
+        "usdPrice",
+        "amount",
+    )
+    if direct is not None:
+        return direct
+
+    cents = _float_or_none(
+        payload,
+        "price_cents",
+        "priceCents",
+        "price_cent",
+        "priceCent",
+        "amount_cents",
+        "amountCents",
+    )
+    if cents is not None:
+        return cents / 100.0
+
+    pricing = payload.get("pricing")
+    if isinstance(pricing, dict):
+        nested = _extract_price(pricing)
+        if nested is not None:
+            return nested
     return None
 
 

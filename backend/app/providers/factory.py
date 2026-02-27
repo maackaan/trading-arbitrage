@@ -89,6 +89,9 @@ def build_providers(settings: Settings) -> list[BaseProvider]:
             api_key=settings.csmoney_api_key,
             listings_api_url=settings.csmoney_listings_api_url,
             timeout_seconds=settings.csmoney_api_timeout_seconds,
+            listings_sort=settings.csmoney_listings_sort,
+            listings_order=settings.csmoney_listings_order,
+            listings_limit=settings.csmoney_listings_limit,
         ),
     ]
 
