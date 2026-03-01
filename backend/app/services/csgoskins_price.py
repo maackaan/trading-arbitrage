@@ -124,19 +124,23 @@ class CSGOSkinsPriceService:
     async def get_skin_snapshot(self, skin_name: str) -> SkinMarketSnapshot | None:
         if not self.enabled or not skin_name.strip():
             return None
-        if self._is_temporarily_blocked():
-            return None
 
         cache_key = skin_name.strip().lower()
-        cached = self._cache_get(self._snapshot_cache, cache_key)
+        blocked = self._is_temporarily_blocked()
+        cached = self._cache_get(self._snapshot_cache, cache_key, allow_expired=blocked)
         if cached is not _CACHE_MISS:
             return cached
+        if blocked:
+            return None
 
         lock = self._skin_locks.setdefault(cache_key, asyncio.Lock())
         async with lock:
-            cached = self._cache_get(self._snapshot_cache, cache_key)
+            blocked = self._is_temporarily_blocked()
+            cached = self._cache_get(self._snapshot_cache, cache_key, allow_expired=blocked)
             if cached is not _CACHE_MISS:
                 return cached
+            if blocked:
+                return None
 
             try:
                 snapshot = await self._load_skin_snapshot_uncached(skin_name)
@@ -149,6 +153,10 @@ class CSGOSkinsPriceService:
             except Exception as exc:
                 logger.debug("Failed loading csgoskins snapshot for %s (%s)", skin_name, type(exc).__name__)
                 snapshot = None
+            if snapshot is None:
+                stale = self._cache_get(self._snapshot_cache, cache_key, allow_expired=True)
+                if stale is not _CACHE_MISS:
+                    return stale
             self._cache_set(
                 self._snapshot_cache,
                 cache_key,
@@ -285,13 +293,19 @@ class CSGOSkinsPriceService:
             return response.read().decode("utf-8", "ignore")
 
     @staticmethod
-    def _cache_get(cache: dict[str, tuple[float, Any]], key: str):
+    def _cache_get(
+        cache: dict[str, tuple[float, Any]],
+        key: str,
+        *,
+        allow_expired: bool = False,
+    ):
         entry = cache.get(key)
         if not entry:
             return _CACHE_MISS
         expires_at, value = entry
         if expires_at <= time.time():
-            cache.pop(key, None)
+            if allow_expired:
+                return value
             return _CACHE_MISS
         return value
 
