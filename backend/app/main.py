@@ -52,6 +52,7 @@ async def lifespan(app: FastAPI):
         providers=providers,
         realtime=realtime,
         deal_detection=deal_detection,
+        refresh_skin_batch_size=settings.refresh_skin_batch_size,
         listing_refresh_interval_seconds=settings.listing_refresh_interval_seconds,
         listing_since_hours=settings.listing_since_hours,
     )

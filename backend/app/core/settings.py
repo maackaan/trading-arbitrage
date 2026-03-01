@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     mock_seed: int = 42
 
     refresh_interval_seconds: int = 10
+    refresh_skin_batch_size: int = 6
     listing_refresh_interval_seconds: int = 60
     listing_since_hours: int = 6
     default_history_hours: int = 72
@@ -30,8 +31,8 @@ class Settings(BaseSettings):
     search_catalog_timeout_seconds: int = 8
     search_catalog_fetch_wears: bool = True
     catalog_image_refresh_ttl_seconds: int = 21600
-    csgoskins_price_fallback_enabled: bool = False
-    csgoskins_price_ttl_seconds: int = 180
+    csgoskins_price_fallback_enabled: bool = True
+    csgoskins_price_ttl_seconds: int = 900
     csgoskins_price_resolve_ttl_seconds: int = 21600
     catalog_image_cache_path: str = "./skin_images_cache.json"
     catalog_prefetch_images: bool = True

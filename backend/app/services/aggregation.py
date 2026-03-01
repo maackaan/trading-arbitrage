@@ -24,6 +24,7 @@ class AggregationService:
         providers: list[BaseProvider],
         realtime: RealtimeManager,
         deal_detection: DealDetectionService,
+        refresh_skin_batch_size: int,
         listing_refresh_interval_seconds: int,
         listing_since_hours: int,
     ) -> None:
@@ -31,8 +32,10 @@ class AggregationService:
         self.providers = providers
         self.realtime = realtime
         self.deal_detection = deal_detection
+        self.refresh_skin_batch_size = max(refresh_skin_batch_size, 1)
         self.listing_refresh_interval_seconds = listing_refresh_interval_seconds
         self.listing_since_hours = max(listing_since_hours, 1)
+        self._skin_batch_offset = 0
 
     @staticmethod
     def _resolve_listing_skin(skin_by_name: dict[str, SkinTable], source_skin_name: str):
@@ -57,8 +60,21 @@ class AggregationService:
             price_repo = PriceRepository(session)
             listing_repo = ListingRepository(session)
 
-            skins = await skin_repo.list_all()
+            all_skins = await skin_repo.list_all()
+            if not all_skins:
+                return
+            if len(all_skins) <= self.refresh_skin_batch_size:
+                skins = all_skins
+            else:
+                start = self._skin_batch_offset % len(all_skins)
+                end = start + self.refresh_skin_batch_size
+                if end <= len(all_skins):
+                    skins = all_skins[start:end]
+                else:
+                    skins = [*all_skins[start:], *all_skins[: end % len(all_skins)]]
+                self._skin_batch_offset = (start + self.refresh_skin_batch_size) % len(all_skins)
             skin_by_name = {skin.name: skin for skin in skins}
+            all_skin_by_name = {skin.name: skin for skin in all_skins}
             snapshot_rows: list[dict] = []
 
             for provider in self.providers:
@@ -108,7 +124,7 @@ class AggregationService:
 
                 try:
                     listings = await provider.fetch_new_listings(
-                        skins,
+                        all_skins,
                         since=now - timedelta(hours=self.listing_since_hours),
                     )
                     provider.mark_listing_refresh(now)
@@ -125,7 +141,7 @@ class AggregationService:
                 rolling_cache: dict[tuple[int, str], float | None] = {}
 
                 for listing in listings:
-                    skin = self._resolve_listing_skin(skin_by_name, listing.skin_name)
+                    skin = self._resolve_listing_skin(all_skin_by_name, listing.skin_name)
                     if skin is None:
                         continue
 

@@ -16,8 +16,25 @@ from app.providers.steam import SteamProvider
 from app.services.csgoskins_price import CSGOSkinsPriceService
 
 
-def _rate(settings: Settings, provider_name: str) -> float:
-    return settings.provider_rate_limit_map.get(provider_name, 5.0)
+SAFE_REAL_RATE_LIMIT_SECONDS = {
+    "steam": 60.0,
+    "buff_market": 60.0,
+    "dmarket": 60.0,
+    "skinbaron": 60.0,
+    "buff163": 60.0,
+    "csgofloat": 60.0,
+    "skinsmonkey": 60.0,
+    "skinport": 300.0,
+    "csmoney": 60.0,
+}
+
+
+def _rate(settings: Settings, provider_name: str, *, use_mock: bool) -> float:
+    configured = settings.provider_rate_limit_map.get(provider_name, 5.0)
+    if use_mock:
+        return configured
+    safe_floor = SAFE_REAL_RATE_LIMIT_SECONDS.get(provider_name, 60.0)
+    return max(configured, safe_floor)
 
 
 def build_providers(settings: Settings) -> list[BaseProvider]:
@@ -36,37 +53,37 @@ def build_providers(settings: Settings) -> list[BaseProvider]:
         SteamProvider(
             use_mock=use_mock,
             mock_engine=mock_engine,
-            rate_limit_seconds=_rate(settings, "steam"),
+            rate_limit_seconds=_rate(settings, "steam", use_mock=use_mock),
             csgoskins_price_service=csgoskins_price_service,
         ),
         BuffMarketProvider(
             use_mock=use_mock,
             mock_engine=mock_engine,
-            rate_limit_seconds=_rate(settings, "buff_market"),
+            rate_limit_seconds=_rate(settings, "buff_market", use_mock=use_mock),
             csgoskins_price_service=csgoskins_price_service,
         ),
         DMarketProvider(
             use_mock=use_mock,
             mock_engine=mock_engine,
-            rate_limit_seconds=_rate(settings, "dmarket"),
+            rate_limit_seconds=_rate(settings, "dmarket", use_mock=use_mock),
             csgoskins_price_service=csgoskins_price_service,
         ),
         SkinBaronProvider(
             use_mock=use_mock,
             mock_engine=mock_engine,
-            rate_limit_seconds=_rate(settings, "skinbaron"),
+            rate_limit_seconds=_rate(settings, "skinbaron", use_mock=use_mock),
             csgoskins_price_service=csgoskins_price_service,
         ),
         Buff163Provider(
             use_mock=use_mock,
             mock_engine=mock_engine,
-            rate_limit_seconds=_rate(settings, "buff163"),
+            rate_limit_seconds=_rate(settings, "buff163", use_mock=use_mock),
             csgoskins_price_service=csgoskins_price_service,
         ),
         CSGOFloatProvider(
             use_mock=use_mock,
             mock_engine=mock_engine,
-            rate_limit_seconds=_rate(settings, "csgofloat"),
+            rate_limit_seconds=_rate(settings, "csgofloat", use_mock=use_mock),
             csgoskins_price_service=csgoskins_price_service,
             api_key=settings.csgofloat_api_key,
             session_cookie=settings.csfloat_session_cookie,
@@ -78,13 +95,13 @@ def build_providers(settings: Settings) -> list[BaseProvider]:
         SkinsMonkeyProvider(
             use_mock=use_mock,
             mock_engine=mock_engine,
-            rate_limit_seconds=_rate(settings, "skinsmonkey"),
+            rate_limit_seconds=_rate(settings, "skinsmonkey", use_mock=use_mock),
             csgoskins_price_service=csgoskins_price_service,
         ),
         SkinportProvider(
             use_mock=use_mock,
             mock_engine=mock_engine,
-            rate_limit_seconds=_rate(settings, "skinport"),
+            rate_limit_seconds=_rate(settings, "skinport", use_mock=use_mock),
             csgoskins_price_service=csgoskins_price_service,
             items_api_url=settings.skinport_items_api_url,
             timeout_seconds=settings.skinport_api_timeout_seconds,
@@ -94,7 +111,7 @@ def build_providers(settings: Settings) -> list[BaseProvider]:
         CSMoneyProvider(
             use_mock=use_mock,
             mock_engine=mock_engine,
-            rate_limit_seconds=_rate(settings, "csmoney"),
+            rate_limit_seconds=_rate(settings, "csmoney", use_mock=use_mock),
             csgoskins_price_service=csgoskins_price_service,
             api_key=settings.csmoney_api_key,
             listings_api_url=settings.csmoney_listings_api_url,

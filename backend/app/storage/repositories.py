@@ -33,10 +33,10 @@ def _is_simulated(metadata: dict) -> bool:
     if metadata.get("simulation_reason"):
         return True
     mode = str(metadata.get("mode") or "").strip().lower()
-    if mode in {"mock", "csgoskins_fallback"}:
+    if mode == "mock":
         return True
     price_source = str(metadata.get("price_source") or "").strip().lower()
-    if price_source in {"mock", "csgoskins.gg"}:
+    if price_source == "mock":
         return True
     return False
 

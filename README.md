@@ -90,6 +90,7 @@ Real CSFloat listings/deals are supported via official public API:
 - `CSFLOAT_LISTINGS_SORT` (default: `most_recent`)
 - `CSFLOAT_LISTINGS_LIMIT` (default: `50`)
 - `LISTING_SINCE_HOURS` (time window filter for incoming listings)
+- `REFRESH_SKIN_BATCH_SIZE` (how many skins to refresh per scheduler tick; lowers API rate pressure)
 
 CS.MONEY integration is still optional and requires dedicated API configuration.
 

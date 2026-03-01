@@ -40,8 +40,8 @@ class StubOrMockProvider(BaseProvider):
                     "simulation_reason": "mock_provider_no_official_price_api",
                 }
             return prices
-        # Placeholder for official API integration. Avoids unsupported scraping.
-        return []
+        # In real mode, use csgoskins aggregated snapshot fallback when available.
+        return await self._fetch_prices_via_csgoskins(skins)
 
     async def fetch_new_listings(
         self,
@@ -65,6 +65,36 @@ class StubOrMockProvider(BaseProvider):
         # Placeholder for official API integration. Avoids unsupported scraping.
         return []
 
+    async def _fetch_prices_via_csgoskins(self, skins: Sequence[SkinTable]) -> list[ProviderPrice]:
+        if not self.csgoskins_price_service or not self.csgoskins_price_service.supports_market(self.name):
+            return []
+
+        now = datetime.now(timezone.utc)
+        rows: list[ProviderPrice] = []
+        for skin in skins:
+            lookup = await self.csgoskins_price_service.get_market_price(skin.name, self.name)
+            if lookup is None or lookup.price <= 0:
+                continue
+            rows.append(
+                ProviderPrice(
+                    market=self.name,
+                    skin_name=skin.name,
+                    price=round(lookup.price, 2),
+                    currency="USD",
+                    timestamp=now,
+                    metadata={
+                        "mode": "aggregated_api",
+                        "is_simulated": False,
+                        "price_source": "csgoskins_aggregate",
+                        "item_url": lookup.item_url,
+                        "image_url": lookup.image_url,
+                        "aggregate_low_price": lookup.aggregate_low_price,
+                        "aggregate_high_price": lookup.aggregate_high_price,
+                    },
+                )
+            )
+        return rows
+
     async def _override_price_rows(self, rows: list[ProviderPrice]) -> None:
         if not self.csgoskins_price_service or not self.csgoskins_price_service.supports_market(self.name):
             return
@@ -78,11 +108,13 @@ class StubOrMockProvider(BaseProvider):
             row.currency = "USD"
             row.metadata = {
                 **row.metadata,
-                "mode": "csgoskins_fallback",
+                "mode": "aggregated_api",
+                "is_simulated": False,
                 "item_url": lookup.item_url,
                 "image_url": lookup.image_url,
                 "aggregate_low_price": lookup.aggregate_low_price,
                 "aggregate_high_price": lookup.aggregate_high_price,
+                "price_source": "csgoskins_aggregate",
             }
 
     async def _override_listing_rows(self, rows: list[ProviderListing]) -> None:
@@ -103,8 +135,9 @@ class StubOrMockProvider(BaseProvider):
             row.listed_at = now - timedelta(seconds=self.mock_engine.random.randint(0, 90))
             row.metadata = {
                 **row.metadata,
-                "mode": "csgoskins_fallback",
-                "price_source": "csgoskins.gg",
+                "mode": "aggregated_api",
+                "is_simulated": False,
+                "price_source": "csgoskins_aggregate",
                 "reference_market_price": lookup.price,
                 "item_url": lookup.item_url,
                 "image_url": lookup.image_url,

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Sequence
 from urllib.error import HTTPError
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
@@ -51,6 +51,8 @@ class CSGOFloatProvider(StubOrMockProvider):
         self.listings_sort = (listings_sort or "most_recent").strip()
         self.listings_limit = min(max(int(listings_limit), 1), 50)
         self.last_error: str | None = None
+        self._cooldown_until: datetime | None = None
+        self._logged_auth_missing = False
 
     @property
     def listings_api_configured(self) -> bool:
@@ -68,17 +70,35 @@ class CSGOFloatProvider(StubOrMockProvider):
         if self.use_mock:
             return await super().fetch_new_listings(skins, since)
 
+        now = datetime.now(timezone.utc)
         if not self.listings_api_configured:
             logger.info("CSFloat listings API is not configured.")
             self.last_error = "CSFloat listings API URL is not configured."
             self.last_listing_error = self.last_error
             return []
 
+        if not self.auth_configured:
+            self.last_error = (
+                "CSFloat auth not configured. Set CSGOFLOAT_API_KEY or CSFLOAT_SESSION_COOKIE."
+            )
+            self.last_listing_error = self.last_error
+            if not self._logged_auth_missing:
+                logger.warning("CSFloat listings disabled: %s", self.last_error)
+                self._logged_auth_missing = True
+            return []
+
+        if self._cooldown_until and now < self._cooldown_until:
+            self.last_error = f"CSFloat cooldown active until {self._cooldown_until.isoformat()}."
+            self.last_listing_error = self.last_error
+            return []
+
         try:
             request_url = self._build_request_url()
             payload = await asyncio.to_thread(self._fetch_json, request_url)
+            self._cooldown_until = None
             self.last_error = None
             self.last_listing_error = None
+            self._logged_auth_missing = False
         except HTTPError as exc:
             body = ""
             try:
@@ -86,10 +106,10 @@ class CSGOFloatProvider(StubOrMockProvider):
             except Exception:
                 body = ""
             self.last_error = f"HTTP {exc.code}: {body[:180] or 'request failed'}"
-            if exc.code == 403 and not self.auth_configured:
-                self.last_error = (
-                    "HTTP 403: CSFloat requires login. Set CSGOFLOAT_API_KEY or CSFLOAT_SESSION_COOKIE."
-                )
+            if exc.code == 403:
+                self._cooldown_until = now + timedelta(minutes=10)
+            elif exc.code == 429:
+                self._cooldown_until = now + timedelta(minutes=5)
             self.last_listing_error = self.last_error
             logger.warning("CSFloat listings request failed: %s", self.last_error)
             return []
