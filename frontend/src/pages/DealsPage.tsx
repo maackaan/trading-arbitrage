@@ -15,19 +15,33 @@ export function DealsPage() {
   const [csfloatError, setCsfloatError] = useState<string | null>(null)
   const { subscribe } = useRealtime()
 
+  const refreshHealth = useCallback(async () => {
+    try {
+      const value = await fetchHealth()
+      setCsfloatConfigured(value.csfloat_listings_api_configured)
+      setCsfloatError(value.csfloat_last_error)
+    } catch {
+      setCsfloatConfigured(false)
+      setCsfloatError(null)
+    }
+  }, [])
+
   const load = useCallback(async (filters: { market: string; minDiscount: number; sinceHours: number }) => {
     setLoading(true)
     try {
-      const rows = await fetchDeals({
-        market: filters.market || undefined,
-        minDiscount: filters.minDiscount,
-        sinceHours: filters.sinceHours,
-      })
+      const [rows] = await Promise.all([
+        fetchDeals({
+          market: filters.market || undefined,
+          minDiscount: filters.minDiscount,
+          sinceHours: filters.sinceHours,
+        }),
+        refreshHealth(),
+      ])
       setDeals(rows)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [refreshHealth])
 
   useEffect(() => {
     void load(appliedFilters)
@@ -44,16 +58,8 @@ export function DealsPage() {
   )
 
   useEffect(() => {
-    void fetchHealth()
-      .then((value) => {
-        setCsfloatConfigured(value.csfloat_listings_api_configured)
-        setCsfloatError(value.csfloat_last_error)
-      })
-      .catch(() => {
-        setCsfloatConfigured(false)
-        setCsfloatError(null)
-      })
-  }, [])
+    void refreshHealth()
+  }, [refreshHealth])
 
   return (
     <section className="page">
@@ -112,7 +118,7 @@ export function DealsPage() {
                   {deal.price_source ? ` | Source: ${deal.price_source}` : ''}
                 </div>
                 <div className="muted">
-                  Discount vs Buff163:{' '}
+                  Discount vs {deal.reference_market?.toUpperCase() ?? 'baseline'}:{' '}
                   {deal.discount_vs_buff_pct !== null ? `${deal.discount_vs_buff_pct.toFixed(2)}%` : 'n/a'}
                   {deal.discount_vs_rolling_pct !== null ? ` | vs rolling: ${deal.discount_vs_rolling_pct.toFixed(2)}%` : ''}
                 </div>
@@ -123,7 +129,9 @@ export function DealsPage() {
                 {deal.price.toFixed(2)} {deal.currency}
               </div>
               {deal.reference_price !== null ? (
-                <div className="muted">Ref: {deal.reference_price.toFixed(2)} USD</div>
+                <div className="muted">
+                  Ref{deal.reference_market ? ` (${deal.reference_market})` : ''}: {deal.reference_price.toFixed(2)} USD
+                </div>
               ) : null}
             </div>
           </li>

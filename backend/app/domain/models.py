@@ -103,6 +103,7 @@ class DealItem(BaseModel):
     discount_vs_buff_pct: Optional[float] = None
     discount_vs_rolling_pct: Optional[float] = None
     reference_price: Optional[float] = None
+    reference_market: Optional[str] = None
     image_url: Optional[str] = None
     price_source: Optional[str] = None
     extreme_underpricing: bool = False
@@ -119,6 +120,7 @@ class ListingItem(BaseModel):
     detected_at: datetime
     is_deal: bool
     reference_price: Optional[float] = None
+    reference_market: Optional[str] = None
     image_url: Optional[str] = None
     price_source: Optional[str] = None
     extreme_underpricing: bool

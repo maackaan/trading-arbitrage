@@ -41,6 +41,10 @@ def _is_simulated(metadata: dict) -> bool:
     return False
 
 
+def _is_untrusted_price_metadata(metadata: dict) -> bool:
+    return _is_simulated(metadata)
+
+
 class SkinRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -168,49 +172,43 @@ class PriceRepository:
             .order_by(PriceSnapshotTable.observed_at.asc())
         )
         rows = (await self.session.scalars(stmt)).all()
-        return [
-            PricePoint(
-                market=row.market,
-                price=row.price,
-                currency=row.currency,
-                timestamp=row.observed_at,
+        points: list[PricePoint] = []
+        for row in rows:
+            metadata = _parse_metadata(row.metadata_json)
+            if _is_untrusted_price_metadata(metadata):
+                continue
+            points.append(
+                PricePoint(
+                    market=row.market,
+                    price=row.price,
+                    currency=row.currency,
+                    timestamp=row.observed_at,
+                )
             )
-            for row in rows
-        ]
+        return points
 
     async def get_latest_per_market(self, skin_id: int) -> list[MarketSummary]:
-        latest_subquery = (
-            select(
-                PriceSnapshotTable.market.label("market"),
-                func.max(PriceSnapshotTable.observed_at).label("max_observed"),
-            )
-            .where(PriceSnapshotTable.skin_id == skin_id)
-            .group_by(PriceSnapshotTable.market)
-            .subquery()
-        )
-
         stmt = (
             select(PriceSnapshotTable)
-            .join(
-                latest_subquery,
-                and_(
-                    PriceSnapshotTable.market == latest_subquery.c.market,
-                    PriceSnapshotTable.observed_at == latest_subquery.c.max_observed,
-                ),
-            )
             .where(PriceSnapshotTable.skin_id == skin_id)
-            .order_by(PriceSnapshotTable.market.asc())
+            .order_by(PriceSnapshotTable.observed_at.desc())
+            .limit(5000)
         )
         rows = (await self.session.scalars(stmt)).all()
-        return [
-            MarketSummary(
+        by_market: dict[str, MarketSummary] = {}
+        for row in rows:
+            if row.market in by_market:
+                continue
+            metadata = _parse_metadata(row.metadata_json)
+            if _is_untrusted_price_metadata(metadata):
+                continue
+            by_market[row.market] = MarketSummary(
                 market=row.market,
                 price=row.price,
                 currency=row.currency,
                 timestamp=row.observed_at,
             )
-            for row in rows
-        ]
+        return [by_market[key] for key in sorted(by_market.keys())]
 
     async def get_market_prices(
         self,
@@ -221,7 +219,7 @@ class PriceRepository:
         limit: int = 500,
     ) -> list[float]:
         stmt = (
-            select(PriceSnapshotTable.price)
+            select(PriceSnapshotTable.price, PriceSnapshotTable.metadata_json)
             .where(
                 and_(
                     PriceSnapshotTable.skin_id == skin_id,
@@ -230,10 +228,18 @@ class PriceRepository:
                 )
             )
             .order_by(PriceSnapshotTable.observed_at.asc())
-            .limit(limit)
+            .limit(max(limit * 8, limit))
         )
-        values = await self.session.scalars(stmt)
-        return [float(v) for v in values.all()]
+        rows = (await self.session.execute(stmt)).all()
+        values: list[float] = []
+        for price, metadata_json in rows:
+            metadata = _parse_metadata(metadata_json)
+            if _is_untrusted_price_metadata(metadata):
+                continue
+            values.append(float(price))
+            if len(values) >= limit:
+                break
+        return values
 
     async def get_market_points(
         self,
@@ -244,7 +250,11 @@ class PriceRepository:
         limit: int = 500,
     ) -> list[tuple[datetime, float]]:
         stmt = (
-            select(PriceSnapshotTable.observed_at, PriceSnapshotTable.price)
+            select(
+                PriceSnapshotTable.observed_at,
+                PriceSnapshotTable.price,
+                PriceSnapshotTable.metadata_json,
+            )
             .where(
                 and_(
                     PriceSnapshotTable.skin_id == skin_id,
@@ -253,20 +263,33 @@ class PriceRepository:
                 )
             )
             .order_by(PriceSnapshotTable.observed_at.asc())
-            .limit(limit)
+            .limit(max(limit * 8, limit))
         )
         rows = (await self.session.execute(stmt)).all()
-        return [(ts, float(price)) for ts, price in rows]
+        points: list[tuple[datetime, float]] = []
+        for ts, price, metadata_json in rows:
+            metadata = _parse_metadata(metadata_json)
+            if _is_untrusted_price_metadata(metadata):
+                continue
+            points.append((ts, float(price)))
+            if len(points) >= limit:
+                break
+        return points
 
     async def get_latest_metadata(self, skin_id: int) -> dict:
         stmt = (
             select(PriceSnapshotTable.metadata_json)
             .where(PriceSnapshotTable.skin_id == skin_id)
             .order_by(desc(PriceSnapshotTable.observed_at))
-            .limit(1)
+            .limit(50)
         )
-        raw = (await self.session.scalars(stmt)).first()
-        return _parse_metadata(raw)
+        rows = (await self.session.scalars(stmt)).all()
+        for raw in rows:
+            metadata = _parse_metadata(raw)
+            if _is_untrusted_price_metadata(metadata):
+                continue
+            return metadata
+        return {}
 
 
 class ListingRepository:
@@ -366,6 +389,7 @@ class ListingRepository:
                     detected_at=row.detected_at,
                     is_deal=row.is_deal,
                     reference_price=metadata.get("reference_market_price"),
+                    reference_market=metadata.get("reference_market"),
                     image_url=metadata.get("image_url"),
                     price_source=metadata.get("price_source"),
                     extreme_underpricing=row.extreme_underpricing,

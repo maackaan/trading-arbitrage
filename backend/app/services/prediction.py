@@ -7,6 +7,7 @@ from statistics import mean, pstdev
 from app.domain.models import PredictionResult
 
 TRADE_LOCK_DAYS = 7.5
+MIN_POINTS_FOR_FORECAST = 6
 
 
 def _weighted_moving_average(values: list[float]) -> float:
@@ -45,7 +46,7 @@ def predict_price_7d5(
     other_market_latest: list[float],
     now: datetime | None = None,
 ) -> PredictionResult | None:
-    if not buff_points:
+    if len(buff_points) < MIN_POINTS_FOR_FORECAST:
         return None
 
     current_time = now or datetime.now(timezone.utc)

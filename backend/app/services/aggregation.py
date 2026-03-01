@@ -63,8 +63,14 @@ class AggregationService:
 
             for provider in self.providers:
                 if provider.can_refresh_prices(now):
-                    prices = await provider.fetch_prices(skins)
-                    provider.mark_price_refresh(now)
+                    try:
+                        prices = await provider.fetch_prices(skins)
+                        provider.mark_price_refresh(now)
+                    except Exception as exc:
+                        provider.last_price_error = f"{type(exc).__name__}: {exc}"
+                        logger.warning("Price refresh failed for provider=%s: %s", provider.name, provider.last_price_error)
+                        continue
+
                     for item in prices:
                         skin = skin_by_name.get(item.skin_name)
                         if skin is None:
@@ -100,33 +106,82 @@ class AggregationService:
                 if not provider.can_refresh_listings(now, self.listing_refresh_interval_seconds):
                     continue
 
-                listings = await provider.fetch_new_listings(
-                    skins,
-                    since=now - timedelta(hours=self.listing_since_hours),
-                )
-                provider.mark_listing_refresh(now)
+                try:
+                    listings = await provider.fetch_new_listings(
+                        skins,
+                        since=now - timedelta(hours=self.listing_since_hours),
+                    )
+                    provider.mark_listing_refresh(now)
+                except Exception as exc:
+                    provider.last_listing_error = f"{type(exc).__name__}: {exc}"
+                    logger.warning(
+                        "Listing refresh failed for provider=%s: %s",
+                        provider.name,
+                        provider.last_listing_error,
+                    )
+                    continue
+
+                baseline_cache: dict[int, tuple[float | None, str | None]] = {}
+                rolling_cache: dict[tuple[int, str], float | None] = {}
+
                 for listing in listings:
                     skin = self._resolve_listing_skin(skin_by_name, listing.skin_name)
                     if skin is None:
                         continue
 
-                    buff_latest = await price_repo.get_market_prices(
-                        skin_id=skin.id,
-                        market="buff163",
-                        since=now - timedelta(days=14),
-                        limit=10,
-                    )
-                    market_recent = await price_repo.get_market_prices(
-                        skin_id=skin.id,
-                        market=listing.market,
-                        since=now - timedelta(days=14),
-                        limit=30,
-                    )
+                    baseline_price: float | None
+                    baseline_market: str | None
+                    if skin.id in baseline_cache:
+                        baseline_price, baseline_market = baseline_cache[skin.id]
+                    else:
+                        buff_latest = await price_repo.get_market_prices(
+                            skin_id=skin.id,
+                            market="buff163",
+                            since=now - timedelta(days=14),
+                            limit=10,
+                        )
+                        if buff_latest:
+                            baseline_price = buff_latest[-1]
+                            baseline_market = "buff163"
+                        else:
+                            skinport_latest = await price_repo.get_market_prices(
+                                skin_id=skin.id,
+                                market="skinport",
+                                since=now - timedelta(days=14),
+                                limit=10,
+                            )
+                            baseline_price = skinport_latest[-1] if skinport_latest else None
+                            baseline_market = "skinport" if skinport_latest else None
+                        baseline_cache[skin.id] = (baseline_price, baseline_market)
+
+                    rolling_key = (skin.id, listing.market)
+                    if rolling_key in rolling_cache:
+                        market_rolling = rolling_cache[rolling_key]
+                    else:
+                        market_recent = await price_repo.get_market_prices(
+                            skin_id=skin.id,
+                            market=listing.market,
+                            since=now - timedelta(days=14),
+                            limit=30,
+                        )
+                        market_rolling = rolling_mean(market_recent, window=12) if market_recent else None
+                        rolling_cache[rolling_key] = market_rolling
+
                     eval_result = self.deal_detection.evaluate(
                         listing_price=listing.price,
-                        buff_baseline=buff_latest[-1] if buff_latest else None,
-                        rolling_mean_price=rolling_mean(market_recent, window=12) if market_recent else None,
+                        buff_baseline=baseline_price,
+                        rolling_mean_price=market_rolling,
                     )
+
+                    metadata = dict(listing.metadata)
+                    metadata.setdefault("is_simulated", False)
+                    metadata.setdefault("mode", "official_api")
+                    if baseline_price is not None:
+                        metadata["reference_market_price"] = round(baseline_price, 4)
+                        if baseline_market:
+                            metadata["reference_market"] = baseline_market
+                    if market_rolling is not None:
+                        metadata["rolling_mean_price"] = round(market_rolling, 4)
 
                     row = await listing_repo.upsert_listing(
                         external_id=listing.external_id,
@@ -137,7 +192,7 @@ class AggregationService:
                         currency=listing.currency,
                         listed_at=listing.listed_at,
                         detected_at=now,
-                        metadata=listing.metadata,
+                        metadata=metadata,
                         is_deal=eval_result.is_deal,
                         discount_vs_buff_pct=eval_result.discount_vs_buff_pct,
                         discount_vs_rolling_pct=eval_result.discount_vs_rolling_pct,

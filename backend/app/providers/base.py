@@ -17,6 +17,8 @@ class BaseProvider(ABC):
         self.rate_limit_seconds = max(rate_limit_seconds, 0.0)
         self._last_price_run: datetime | None = None
         self._last_listing_run: datetime | None = None
+        self.last_price_error: str | None = None
+        self.last_listing_error: str | None = None
 
     def can_refresh_prices(self, now: datetime | None = None) -> bool:
         if self._last_price_run is None:

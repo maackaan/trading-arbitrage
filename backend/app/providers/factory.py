@@ -86,6 +86,10 @@ def build_providers(settings: Settings) -> list[BaseProvider]:
             mock_engine=mock_engine,
             rate_limit_seconds=_rate(settings, "skinport"),
             csgoskins_price_service=csgoskins_price_service,
+            items_api_url=settings.skinport_items_api_url,
+            timeout_seconds=settings.skinport_api_timeout_seconds,
+            app_id=settings.skinport_app_id,
+            currency=settings.skinport_currency,
         ),
         CSMoneyProvider(
             use_mock=use_mock,

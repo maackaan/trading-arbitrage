@@ -14,18 +14,32 @@ export function NewListingsPage() {
   const [csfloatError, setCsfloatError] = useState<string | null>(null)
   const { subscribe } = useRealtime()
 
+  const refreshHealth = useCallback(async () => {
+    try {
+      const value = await fetchHealth()
+      setCsfloatConfigured(value.csfloat_listings_api_configured)
+      setCsfloatError(value.csfloat_last_error)
+    } catch {
+      setCsfloatConfigured(false)
+      setCsfloatError(null)
+    }
+  }, [])
+
   const load = useCallback(async (filters: { market: string; sinceHours: number }) => {
     setLoading(true)
     try {
-      const rows = await fetchNewListings({
-        market: filters.market || undefined,
-        sinceHours: filters.sinceHours,
-      })
+      const [rows] = await Promise.all([
+        fetchNewListings({
+          market: filters.market || undefined,
+          sinceHours: filters.sinceHours,
+        }),
+        refreshHealth(),
+      ])
       setItems(rows)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [refreshHealth])
 
   useEffect(() => {
     void load(appliedFilters)
@@ -42,16 +56,8 @@ export function NewListingsPage() {
   )
 
   useEffect(() => {
-    void fetchHealth()
-      .then((value) => {
-        setCsfloatConfigured(value.csfloat_listings_api_configured)
-        setCsfloatError(value.csfloat_last_error)
-      })
-      .catch(() => {
-        setCsfloatConfigured(false)
-        setCsfloatError(null)
-      })
-  }, [])
+    void refreshHealth()
+  }, [refreshHealth])
 
   return (
     <section className="page">
@@ -106,7 +112,9 @@ export function NewListingsPage() {
                 {item.price.toFixed(2)} {item.currency}
               </div>
               {item.reference_price !== null ? (
-                <div className="muted">Ref: {item.reference_price.toFixed(2)} USD</div>
+                <div className="muted">
+                  Ref{item.reference_market ? ` (${item.reference_market})` : ''}: {item.reference_price.toFixed(2)} USD
+                </div>
               ) : null}
             </div>
           </li>

@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     mock_seed: int = 42
 
     refresh_interval_seconds: int = 10
-    listing_refresh_interval_seconds: int = 8
+    listing_refresh_interval_seconds: int = 60
     listing_since_hours: int = 6
     default_history_hours: int = 72
     search_catalog_provider: str = "csgoskins_gg"
@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     catalog_image_cache_path: str = "./skin_images_cache.json"
     catalog_prefetch_images: bool = True
 
-    provider_rate_limits: str = "steam:5,buff_market:5,dmarket:5,skinbaron:5,buff163:5,csgofloat:5,skinsmonkey:5,skinport:5,csmoney:5"
+    provider_rate_limits: str = "steam:60,buff_market:60,dmarket:60,skinbaron:60,buff163:60,csgofloat:60,skinsmonkey:60,skinport:300,csmoney:60"
 
     steam_api_key: str = ""
     buff_market_api_key: str = ""
@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     csfloat_listings_limit: int = 50
     skinsmonkey_api_key: str = ""
     skinport_api_key: str = ""
+    skinport_items_api_url: str = "https://api.skinport.com/v1/items"
+    skinport_api_timeout_seconds: int = 20
+    skinport_app_id: int = 730
+    skinport_currency: str = "USD"
     csmoney_api_key: str = ""
     csmoney_listings_api_url: str = ""
     csmoney_api_timeout_seconds: int = 10

@@ -71,12 +71,14 @@ class CSGOFloatProvider(StubOrMockProvider):
         if not self.listings_api_configured:
             logger.info("CSFloat listings API is not configured.")
             self.last_error = "CSFloat listings API URL is not configured."
+            self.last_listing_error = self.last_error
             return []
 
         try:
             request_url = self._build_request_url()
             payload = await asyncio.to_thread(self._fetch_json, request_url)
             self.last_error = None
+            self.last_listing_error = None
         except HTTPError as exc:
             body = ""
             try:
@@ -88,10 +90,12 @@ class CSGOFloatProvider(StubOrMockProvider):
                 self.last_error = (
                     "HTTP 403: CSFloat requires login. Set CSGOFLOAT_API_KEY or CSFLOAT_SESSION_COOKIE."
                 )
+            self.last_listing_error = self.last_error
             logger.warning("CSFloat listings request failed: %s", self.last_error)
             return []
         except Exception:
             self.last_error = "Request failed unexpectedly."
+            self.last_listing_error = self.last_error
             logger.warning("CSFloat listings request failed", exc_info=True)
             return []
 

@@ -56,6 +56,7 @@ async def get_deals(
                 discount_vs_buff_pct=row.discount_vs_buff_pct,
                 discount_vs_rolling_pct=row.discount_vs_rolling_pct,
                 reference_price=metadata.get("reference_market_price"),
+                reference_market=metadata.get("reference_market"),
                 image_url=metadata.get("image_url")
                 or (
                     container.catalog_search.image_for_skin_name(row.skin_name)

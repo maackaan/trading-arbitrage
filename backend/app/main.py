@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import deals, health, listings, skins, ws
+from app.api import deals, health, listings, providers, skins, ws
 from app.core.container import AppContainer
 from app.core.logging import configure_logging
 from app.core.settings import get_settings
@@ -97,6 +97,7 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(providers.router)
 app.include_router(skins.router)
 app.include_router(deals.router)
 app.include_router(listings.router)

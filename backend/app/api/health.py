@@ -16,6 +16,14 @@ router = APIRouter(prefix="/api", tags=["health"])
 async def health(container: AppContainer = Depends(get_container)) -> dict:
     csfloat_provider = next((p for p in container.providers if isinstance(p, CSGOFloatProvider)), None)
     csmoney_provider = next((p for p in container.providers if isinstance(p, CSMoneyProvider)), None)
+    provider_errors = {
+        provider.name: {
+            "price_error": provider.last_price_error,
+            "listing_error": provider.last_listing_error,
+        }
+        for provider in container.providers
+        if getattr(provider, "last_price_error", None) or getattr(provider, "last_listing_error", None)
+    }
     return {
         "status": "ok",
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -29,4 +37,5 @@ async def health(container: AppContainer = Depends(get_container)) -> dict:
         "csmoney_listings_api_configured": bool(
             csmoney_provider and csmoney_provider.listings_api_configured
         ),
+        "provider_errors": provider_errors,
     }

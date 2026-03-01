@@ -33,6 +33,12 @@ class StubOrMockProvider(BaseProvider):
         if self.use_mock:
             prices = self.mock_engine.generate_prices(self.name, skins)
             await self._override_price_rows(prices)
+            for price in prices:
+                price.metadata = {
+                    **price.metadata,
+                    "is_simulated": True,
+                    "simulation_reason": "mock_provider_no_official_price_api",
+                }
             return prices
         # Placeholder for official API integration. Avoids unsupported scraping.
         return []
