@@ -11,6 +11,15 @@ const EXAMPLE_QUERIES = [
   'USP-S | Kill Confirmed',
 ]
 
+function preferredWearTarget(wearOptions: Array<{ wear: string; skin: Skin }>, fallback: Skin) {
+  return (
+    wearOptions.find((option) => option.wear === 'Field-Tested')?.skin ??
+    wearOptions.find((option) => option.wear === 'Minimal Wear')?.skin ??
+    wearOptions[0]?.skin ??
+    fallback
+  )
+}
+
 export function SearchPage() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Skin[]>([])
@@ -126,7 +135,9 @@ export function SearchPage() {
           <h2>Best match</h2>
           {bestMatch.image_url ? <img className="listing-thumb" src={bestMatch.image_url} alt={bestMatch.name} /> : null}
           <p>
-            <Link to={`/skins/${bestMatch.id}`}>{bestMatch.name}</Link>
+            <Link to={`/skins/${preferredWearTarget(wearOptions, bestMatch).id}`}>
+              {preferredWearTarget(wearOptions, bestMatch).name}
+            </Link>
           </p>
           {wearOptions.length > 0 ? (
             <>

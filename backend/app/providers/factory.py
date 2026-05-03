@@ -4,13 +4,13 @@ from app.core.settings import Settings
 from app.providers.base import BaseProvider
 from app.providers.buff163 import Buff163Provider
 from app.providers.buff_market import BuffMarketProvider
-from app.providers.csgofloat import CSGOFloatProvider
+from app.providers.csfloat_provider import CSFloatProvider
 from app.providers.csmoney import CSMoneyProvider
 from app.providers.dmarket import DMarketProvider
 from app.providers.common import StubOrMockProvider
 from app.providers.mock import MockMarketEngine
 from app.providers.skinbaron import SkinBaronProvider
-from app.providers.skinport import SkinportProvider
+from app.providers.skinport_provider import SkinportProvider
 from app.providers.skinsmonkey import SkinsMonkeyProvider
 from app.providers.steam import SteamProvider
 from app.services.csgoskins_price import CSGOSkinsPriceService
@@ -55,6 +55,9 @@ def build_providers(settings: Settings) -> list[BaseProvider]:
             mock_engine=mock_engine,
             rate_limit_seconds=_rate(settings, "steam", use_mock=use_mock),
             csgoskins_price_service=csgoskins_price_service,
+            country=settings.steam_country,
+            currency_code=settings.steam_currency_code,
+            currency=settings.steam_currency,
         ),
         BuffMarketProvider(
             use_mock=use_mock,
@@ -80,7 +83,7 @@ def build_providers(settings: Settings) -> list[BaseProvider]:
             rate_limit_seconds=_rate(settings, "buff163", use_mock=use_mock),
             csgoskins_price_service=csgoskins_price_service,
         ),
-        CSGOFloatProvider(
+        CSFloatProvider(
             use_mock=use_mock,
             mock_engine=mock_engine,
             rate_limit_seconds=_rate(settings, "csgofloat", use_mock=use_mock),

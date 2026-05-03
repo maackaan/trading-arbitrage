@@ -50,6 +50,16 @@ Vite dev proxy forwards:
 
 Open `http://localhost:5173`.
 
+## One-command Development
+
+After backend and frontend dependencies are installed, start both services from the repo root:
+
+```bash
+npm run dev
+```
+
+This runs FastAPI on `127.0.0.1:8000` and Vite on `localhost:5173`.
+
 ## Tests
 
 ```bash
@@ -61,8 +71,9 @@ pytest
 ## Mock vs Real Providers
 
 By default, `USE_MOCK_PROVIDERS=true`, so markets generate sample price snapshots without API keys.
+Mock/simulated snapshots are filtered out before read APIs return data; unavailable live sources show `No live price available`.
 Mock listings are disabled by default (`MOCK_LISTINGS_ENABLED=false`) so Deals/New Listings never show fake rows.
-`CSGOSKINS_PRICE_FALLBACK_ENABLED=false` by default to avoid csgoskins item-page rate limits.
+`CSGOSKINS_PRICE_FALLBACK_ENABLED=false` by default. Keep it disabled unless csgoskins aggregate item-page lookup is confirmed acceptable for your use case.
 Skin images are fetched from the csgoskins search index and cached locally at `backend/skin_images_cache.json`.
 When a skin/wear is selected, backend refreshes the image from the item page and upgrades to source-resolution when available.
 
@@ -79,8 +90,8 @@ Adapters exist for:
 - csgofloat (new listings feed via official public API)
 - csmoney (optional adapter)
 
-When `USE_MOCK_PROVIDERS=false`, adapters intentionally return empty data until official API integrations are implemented.
-No ToS-violating scraping is included.
+When `USE_MOCK_PROVIDERS=false`, adapters intentionally return empty data unless an official or confirmed-allowed endpoint is configured.
+Do not add ToS-violating scraping.
 Real CSFloat listings/deals are supported via official public API:
 
 - `CSFLOAT_LISTINGS_API_URL` (default: `https://csfloat.com/api/v1/listings`)
@@ -93,6 +104,9 @@ Real CSFloat listings/deals are supported via official public API:
 - `REFRESH_SKIN_BATCH_SIZE` (how many skins to refresh per scheduler tick; lowers API rate pressure)
 
 CS.MONEY integration is still optional and requires dedicated API configuration.
+Skinport item prices are read from the official unauthenticated `/v1/items` API and use live `min_price` only, not suggested prices.
+Steam prices are fetched from the Steam Community Market order histogram for the selected item, with `priceoverview` only as a fallback. `STEAM_COUNTRY`, `STEAM_CURRENCY_CODE`, and `STEAM_CURRENCY` control the displayed Steam currency.
+CSFloat current prices use the official listings endpoint with `market_hash_name`, `sort_by=lowest_price`, and `type=buy_now`; CSFloat may still return login-required `403` without an API key or session cookie.
 
 ## Search Behavior
 

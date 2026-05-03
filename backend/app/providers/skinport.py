@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Sequence
 from urllib.error import HTTPError
@@ -13,12 +14,24 @@ from app.domain.models import ProviderPrice
 from app.providers.common import StubOrMockProvider
 from app.providers.mock import MockMarketEngine
 from app.services.csgoskins_price import CSGOSkinsPriceService
+from app.services.market_hash_names import market_hash_candidates
 from app.storage.db import SkinTable
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class SkinportPrice:
+    price: float
+    currency: str
+    item_url: str | None
+    market_url: str | None
+    updated_at: datetime | None
+
+
 class SkinportProvider(StubOrMockProvider):
+    background_price_refresh_enabled = False
+
     def __init__(
         self,
         *,
@@ -43,15 +56,21 @@ class SkinportProvider(StubOrMockProvider):
         self.app_id = app_id
         self.currency = currency.upper().strip() or "USD"
         self.last_error: str | None = None
-        self._price_cache: dict[str, float] = {}
+        self._price_cache: dict[str, SkinportPrice] = {}
         self._cache_updated_at: datetime | None = None
         self._cooldown_until: datetime | None = None
+        self._cache_ttl_seconds = 900
 
     async def fetch_prices(self, skins: Sequence[SkinTable]) -> list[ProviderPrice]:
         if self.use_mock:
             return await super().fetch_prices(skins)
 
         now = datetime.now(timezone.utc)
+        if self._price_cache and self._cache_updated_at:
+            cache_age_seconds = max(int((now - self._cache_updated_at).total_seconds()), 0)
+            if cache_age_seconds < self._cache_ttl_seconds:
+                return self._rows_from_cache(skins, now)
+
         if not self.items_api_url:
             self.last_error = "Skinport items API URL is not configured."
             self.last_price_error = self.last_error
@@ -126,20 +145,31 @@ class SkinportProvider(StubOrMockProvider):
         self,
         skins: Sequence[SkinTable],
         now: datetime,
-        price_by_name: dict[str, float],
+        price_by_name: dict[str, SkinportPrice],
         *,
         source: str,
         cache_age_seconds: int | None = None,
     ) -> list[ProviderPrice]:
         rows: list[ProviderPrice] = []
         for skin in skins:
-            price = price_by_name.get(skin.name)
-            if price is None:
+            market_hash_name = skin.name
+            item = None
+            for candidate in market_hash_candidates(skin.name):
+                item = price_by_name.get(candidate)
+                if item is not None:
+                    market_hash_name = candidate
+                    break
+            if item is None:
                 continue
             metadata: dict[str, Any] = {
                 "mode": "official_api",
                 "is_simulated": False,
-                "price_source": source,
+                "price_source": "skinport",
+                "price_source_detail": source,
+                "item_url": item.item_url,
+                "market_url": item.market_url,
+                "market_hash_name": market_hash_name,
+                "provider_updated_at": item.updated_at.isoformat() if item.updated_at else None,
             }
             if cache_age_seconds is not None:
                 metadata["cache_age_seconds"] = cache_age_seconds
@@ -147,8 +177,8 @@ class SkinportProvider(StubOrMockProvider):
                 ProviderPrice(
                     market="skinport",
                     skin_name=skin.name,
-                    price=price,
-                    currency=self.currency,
+                    price=item.price,
+                    currency=item.currency or self.currency,
                     timestamp=now,
                     metadata=metadata,
                 )
@@ -187,11 +217,11 @@ class SkinportProvider(StubOrMockProvider):
         return json.loads(raw.decode("utf-8"))
 
 
-def _build_price_map(payload: Any) -> dict[str, float]:
+def _build_price_map(payload: Any) -> dict[str, SkinportPrice]:
     if not isinstance(payload, list):
         return {}
 
-    prices: dict[str, float] = {}
+    prices: dict[str, SkinportPrice] = {}
     for item in payload:
         if not isinstance(item, dict):
             continue
@@ -200,15 +230,24 @@ def _build_price_map(payload: Any) -> dict[str, float]:
             continue
 
         min_price = item.get("min_price")
-        suggested_price = item.get("suggested_price")
-        raw_price = min_price if _is_positive_number(min_price) else suggested_price
-        if not _is_positive_number(raw_price):
+        if not _is_positive_number(min_price):
             continue
 
-        value = float(raw_price) / 100.0
+        value = float(min_price)
         if value <= 0:
             continue
-        prices[market_hash_name] = round(value, 2)
+
+        currency = str(item.get("currency") or "USD").strip().upper() or "USD"
+        item_url = _string_or_none(item, "item_page")
+        market_url = _string_or_none(item, "market_page")
+        updated_at = _unix_datetime_or_none(item.get("updated_at"))
+        prices[market_hash_name] = SkinportPrice(
+            price=round(value, 2),
+            currency=currency,
+            item_url=item_url,
+            market_url=market_url,
+            updated_at=updated_at,
+        )
     return prices
 
 
@@ -217,6 +256,24 @@ def _is_positive_number(value: Any) -> bool:
         return float(value) > 0
     except (TypeError, ValueError):
         return False
+
+
+def _string_or_none(payload: dict[str, Any], key: str) -> str | None:
+    value = payload.get(key)
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _unix_datetime_or_none(value: Any) -> datetime | None:
+    try:
+        timestamp = float(value)
+    except (TypeError, ValueError):
+        return None
+    if timestamp <= 0:
+        return None
+    return datetime.fromtimestamp(timestamp, tz=timezone.utc)
 
 
 def _extract_retry_after_seconds(exc: HTTPError, default_seconds: int) -> int:

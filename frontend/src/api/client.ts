@@ -1,4 +1,4 @@
-import type { DealItem, ListingItem, PricePoint, SkinSearchResponse, SkinSummary, SkinVariantsResponse } from '../types'
+import type { DealItem, ListingItem, PricePoint, ProviderStatus, SkinSearchResponse, SkinSummary, SkinVariantsResponse } from '../types'
 
 async function getJson<T>(path: string): Promise<T> {
   const res = await fetch(path)
@@ -18,6 +18,10 @@ export async function fetchHealth(): Promise<{
   csmoney_listings_api_configured: boolean
 }> {
   return getJson('/api/health')
+}
+
+export async function fetchProviderStatus(): Promise<{ providers: ProviderStatus[] }> {
+  return getJson('/api/providers/status')
 }
 
 export async function searchSkins(query: string): Promise<SkinSearchResponse> {

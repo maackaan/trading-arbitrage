@@ -20,6 +20,7 @@ async def provider_status(container: AppContainer = Depends(get_container)) -> d
                 "rate_limit_seconds": provider.rate_limit_seconds,
                 "last_price_error": provider.last_price_error,
                 "last_listing_error": provider.last_listing_error,
+                "cooldown_until": getattr(provider, "_cooldown_until", None),
             }
         )
     return {"providers": items}

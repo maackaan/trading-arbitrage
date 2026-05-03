@@ -3,7 +3,21 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+
+MAX_REASONABLE_SKIN_PRICE = 1_000_000.0
+KnownPriceSource = Literal[
+    "steam",
+    "buff_market",
+    "dmarket",
+    "skinbaron",
+    "buff163",
+    "csfloat",
+    "skinsmonkey",
+    "skinport",
+    "csmoney",
+]
 
 
 class Skin(BaseModel):
@@ -64,7 +78,45 @@ class MarketSummary(BaseModel):
     price: float
     currency: str
     timestamp: datetime
+    url: Optional[str] = None
     spread_vs_buff163_pct: Optional[float] = None
+
+
+class NormalizedProviderPrice(BaseModel):
+    item_name: str
+    source: KnownPriceSource
+    price: Optional[float] = None
+    currency: Optional[str] = None
+    url: Optional[str] = None
+    last_updated: datetime
+    available: bool
+    error: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_price_state(self) -> "NormalizedProviderPrice":
+        if self.available:
+            if self.price is None or not isinstance(self.price, (int, float)):
+                raise ValueError("available prices must include a numeric price")
+            if self.price <= 0:
+                raise ValueError("available prices must be greater than 0")
+            if self.price > MAX_REASONABLE_SKIN_PRICE:
+                raise ValueError("available prices exceed the configured sanity limit")
+            if not self.currency:
+                raise ValueError("available prices must include a currency")
+            self.error = None
+        else:
+            self.price = None
+            self.currency = None
+            self.url = None
+            self.error = self.error or "No live price available"
+        return self
+
+
+class PriceComparison(BaseModel):
+    item_name: str
+    sources: List[NormalizedProviderPrice]
+    cheapest_source: Optional[NormalizedProviderPrice] = None
+    percentage_difference: Optional[float] = None
 
 
 class MetricBundle(BaseModel):
@@ -87,6 +139,7 @@ class SkinSummary(BaseModel):
     baseline_price: Optional[float] = None
     image_url: Optional[str] = None
     latest_prices: List[MarketSummary]
+    price_comparison: PriceComparison
     metrics_by_market: Dict[str, MetricBundle]
     prediction_7d5: Optional[PredictionResult] = None
 

@@ -1,4 +1,6 @@
 from app.providers.csgofloat import _build_icon_url, _iter_listing_items, _resolve_skin_name
+from app.providers.csgofloat import CSGOFloatProvider
+from app.providers.mock import MockMarketEngine
 
 
 def test_resolve_skin_name_prefers_market_hash_name() -> None:
@@ -27,3 +29,18 @@ def test_iter_listing_items_supports_data_key() -> None:
     rows = _iter_listing_items(payload)
     assert len(rows) == 1
     assert rows[0]["id"] == "x"
+
+
+def test_build_price_lookup_url_uses_market_hash_name_filter() -> None:
+    provider = CSGOFloatProvider(
+        use_mock=False,
+        mock_engine=MockMarketEngine(),
+        rate_limit_seconds=0,
+    )
+
+    url = provider._build_price_lookup_url("AK-47 | Redline (Field-Tested)")
+
+    assert "sort_by=lowest_price" in url
+    assert "limit=1" in url
+    assert "type=buy_now" in url
+    assert "market_hash_name=AK-47+%7C+Redline+%28Field-Tested%29" in url

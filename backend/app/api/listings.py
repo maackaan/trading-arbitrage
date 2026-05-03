@@ -41,6 +41,7 @@ async def get_new_listings(
             detected_at=item.detected_at,
             is_deal=item.is_deal,
             reference_price=item.reference_price,
+            reference_market=item.reference_market,
             image_url=container.catalog_search.image_for_skin_name(item.skin_name),
             price_source=item.price_source,
             extreme_underpricing=item.extreme_underpricing,

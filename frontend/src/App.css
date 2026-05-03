@@ -116,6 +116,26 @@ main {
   padding: 0.75rem;
 }
 
+.list.compact li.unavailable {
+  color: var(--muted);
+}
+
+.list.compact li > span:last-child {
+  text-align: right;
+}
+
+.list.compact small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-top: 0.2rem;
+}
+
+.price-source-list a,
+.list.compact a {
+  color: #f3f7ff;
+}
+
 .item.extreme {
   border-color: var(--danger-border);
   background: var(--danger-bg);
@@ -335,6 +355,18 @@ main {
 
 .muted {
   color: var(--muted);
+}
+
+.notice {
+  background: #172033;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  color: var(--text);
+  padding: 0.75rem;
+}
+
+.notice code {
+  color: #dbeafe;
 }
 
 @media (max-width: 700px) {

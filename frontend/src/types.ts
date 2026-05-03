@@ -38,7 +38,26 @@ export type MarketSummary = {
   price: number
   currency: string
   timestamp: string
+  url: string | null
   spread_vs_buff163_pct: number | null
+}
+
+export type NormalizedProviderPrice = {
+  item_name: string
+  source: string
+  price: number | null
+  currency: string | null
+  url: string | null
+  last_updated: string
+  available: boolean
+  error: string | null
+}
+
+export type PriceComparison = {
+  item_name: string
+  sources: NormalizedProviderPrice[]
+  cheapest_source: NormalizedProviderPrice | null
+  percentage_difference: number | null
 }
 
 export type MetricBundle = {
@@ -61,6 +80,7 @@ export type SkinSummary = {
   baseline_price: number | null
   image_url: string | null
   latest_prices: MarketSummary[]
+  price_comparison: PriceComparison
   metrics_by_market: Record<string, MetricBundle>
   prediction_7d5: Prediction | null
 }
@@ -104,4 +124,14 @@ export type RealtimeEvent = {
   event: 'price_update' | 'deal_alert' | 'new_listing'
   payload: Record<string, unknown>
   timestamp: string
+}
+
+export type ProviderStatus = {
+  name: string
+  use_mock: boolean
+  supports_listings: boolean
+  rate_limit_seconds: number
+  last_price_error: string | null
+  last_listing_error: string | null
+  cooldown_until: string | null
 }

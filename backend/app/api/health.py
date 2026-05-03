@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 
 from app.api.deps import get_container
 from app.core.container import AppContainer
-from app.providers.csgofloat import CSGOFloatProvider
+from app.providers.csfloat_provider import CSFloatProvider
 from app.providers.csmoney import CSMoneyProvider
 
 router = APIRouter(prefix="/api", tags=["health"])
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api", tags=["health"])
 
 @router.get("/health")
 async def health(container: AppContainer = Depends(get_container)) -> dict:
-    csfloat_provider = next((p for p in container.providers if isinstance(p, CSGOFloatProvider)), None)
+    csfloat_provider = next((p for p in container.providers if isinstance(p, CSFloatProvider)), None)
     csmoney_provider = next((p for p in container.providers if isinstance(p, CSMoneyProvider)), None)
     provider_errors = {
         provider.name: {

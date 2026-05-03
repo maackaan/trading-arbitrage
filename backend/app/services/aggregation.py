@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.providers.base import BaseProvider
 from app.services.deal_detection import DealDetectionService
+from app.services.price_service import validate_provider_listing, validate_provider_price
 from app.services.pricing_metrics import rolling_mean
 from app.services.realtime import RealtimeManager
 from app.services.wear import PREFERRED_LISTING_WEAR, has_wear_suffix, split_wear_suffix
@@ -78,6 +79,8 @@ class AggregationService:
             snapshot_rows: list[dict] = []
 
             for provider in self.providers:
+                if not provider.background_price_refresh_enabled:
+                    continue
                 if provider.can_refresh_prices(now):
                     try:
                         prices = await provider.fetch_prices(skins)
@@ -87,7 +90,15 @@ class AggregationService:
                         logger.warning("Price refresh failed for provider=%s: %s", provider.name, provider.last_price_error)
                         continue
 
-                    for item in prices:
+                    for raw_item in prices:
+                        item = validate_provider_price(raw_item)
+                        if item is None:
+                            logger.warning(
+                                "Skipping invalid price from provider=%s skin=%s",
+                                provider.name,
+                                getattr(raw_item, "skin_name", "unknown"),
+                            )
+                            continue
                         skin = skin_by_name.get(item.skin_name)
                         if skin is None:
                             continue
@@ -140,7 +151,15 @@ class AggregationService:
                 baseline_cache: dict[int, tuple[float | None, str | None]] = {}
                 rolling_cache: dict[tuple[int, str], float | None] = {}
 
-                for listing in listings:
+                for raw_listing in listings:
+                    listing = validate_provider_listing(raw_listing)
+                    if listing is None:
+                        logger.warning(
+                            "Skipping invalid listing from provider=%s skin=%s",
+                            provider.name,
+                            getattr(raw_listing, "skin_name", "unknown"),
+                        )
+                        continue
                     skin = self._resolve_listing_skin(all_skin_by_name, listing.skin_name)
                     if skin is None:
                         continue

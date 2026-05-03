@@ -11,6 +11,7 @@ from app.storage.db import SkinTable
 class BaseProvider(ABC):
     name: str
     supports_listings: bool = False
+    background_price_refresh_enabled: bool = True
 
     def __init__(self, *, use_mock: bool, rate_limit_seconds: float = 5.0) -> None:
         self.use_mock = use_mock

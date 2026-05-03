@@ -8,6 +8,12 @@ from sqlalchemy import Select, and_, delete, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models import ListingItem, MarketSummary, PricePoint, Skin
+from app.services.price_service import (
+    canonical_source,
+    is_fresh_live_observation,
+    is_known_source,
+    is_valid_price_value,
+)
 from app.services.search_matching import score_skin_name, suggest_skin_names
 from app.services.wear import WEAR_ORDER, split_wear_suffix
 from app.storage.db import ListingTable, PriceSnapshotTable, SkinTable
@@ -42,6 +48,12 @@ def _is_simulated(metadata: dict) -> bool:
 
 
 def _is_untrusted_price_metadata(metadata: dict) -> bool:
+    if metadata.get("price_source") == "csgoskins_aggregate":
+        return True
+    if metadata.get("mode") == "aggregated_api":
+        return True
+    if metadata.get("price_source") == "skinport_api" and not metadata.get("price_source_detail"):
+        return True
     return _is_simulated(metadata)
 
 
@@ -177,9 +189,11 @@ class PriceRepository:
             metadata = _parse_metadata(row.metadata_json)
             if _is_untrusted_price_metadata(metadata):
                 continue
+            if not is_known_source(row.market) or not is_valid_price_value(row.price):
+                continue
             points.append(
                 PricePoint(
-                    market=row.market,
+                    market=canonical_source(row.market),
                     price=row.price,
                     currency=row.currency,
                     timestamp=row.observed_at,
@@ -202,11 +216,19 @@ class PriceRepository:
             metadata = _parse_metadata(row.metadata_json)
             if _is_untrusted_price_metadata(metadata):
                 continue
-            by_market[row.market] = MarketSummary(
-                market=row.market,
+            market = canonical_source(row.market)
+            if (
+                not is_known_source(market)
+                or not is_valid_price_value(row.price)
+                or not is_fresh_live_observation(row.observed_at)
+            ):
+                continue
+            by_market[market] = MarketSummary(
+                market=market,
                 price=row.price,
                 currency=row.currency,
                 timestamp=row.observed_at,
+                url=metadata.get("item_url") or metadata.get("market_url"),
             )
         return [by_market[key] for key in sorted(by_market.keys())]
 
@@ -235,6 +257,8 @@ class PriceRepository:
         for price, metadata_json in rows:
             metadata = _parse_metadata(metadata_json)
             if _is_untrusted_price_metadata(metadata):
+                continue
+            if not is_valid_price_value(price):
                 continue
             values.append(float(price))
             if len(values) >= limit:
@@ -270,6 +294,8 @@ class PriceRepository:
         for ts, price, metadata_json in rows:
             metadata = _parse_metadata(metadata_json)
             if _is_untrusted_price_metadata(metadata):
+                continue
+            if not is_valid_price_value(price):
                 continue
             points.append((ts, float(price)))
             if len(points) >= limit:
@@ -377,10 +403,12 @@ class ListingRepository:
             metadata = _parse_metadata(row.metadata_json)
             if _is_simulated(metadata):
                 continue
+            if not is_known_source(row.market) or not is_valid_price_value(row.price):
+                continue
             items.append(
                 ListingItem(
                     listing_id=row.id,
-                    market=row.market,
+                    market=canonical_source(row.market),
                     skin_id=row.skin_id,
                     skin_name=row.skin_name,
                     price=row.price,
@@ -438,6 +466,8 @@ class ListingRepository:
         for row in rows:
             metadata = _parse_metadata(row.metadata_json)
             if _is_simulated(metadata):
+                continue
+            if not is_known_source(row.market) or not is_valid_price_value(row.price):
                 continue
             filtered.append(row)
             if len(filtered) >= limit:

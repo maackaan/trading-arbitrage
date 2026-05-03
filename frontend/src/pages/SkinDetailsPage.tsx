@@ -16,6 +16,11 @@ import { useRealtime } from '../components/useRealtime'
 import type { PricePoint, RealtimeEvent, Skin, SkinSummary } from '../types'
 
 const palette = ['#1f77b4', '#2ca02c', '#ff7f0e', '#d62728', '#17becf', '#9467bd', '#8c564b', '#e377c2']
+const sourceLabels: Record<string, string> = {
+  steam: 'Steam lowest sell order',
+  skinport: 'Skinport lowest live listing',
+  csfloat: 'CSFloat lowest live listing',
+}
 
 function buildChartData(points: PricePoint[]) {
   const grouped = new Map<string, Record<string, number | string>>()
@@ -29,6 +34,13 @@ function buildChartData(points: PricePoint[]) {
   })
 
   return Array.from(grouped.values()).sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)))
+}
+
+function formatPrice(price: number | null, currency: string | null) {
+  if (price === null || currency === null) {
+    return 'No live price available'
+  }
+  return `${price.toFixed(2)} ${currency}`
 }
 
 export function SkinDetailsPage() {
@@ -139,20 +151,44 @@ export function SkinDetailsPage() {
         </article>
 
         <article className="card">
-          <h2>Prediction (+7.5 days)</h2>
-          {summary.prediction_7d5 ? (
-            <>
-              <p>
-                <strong>{summary.prediction_7d5.predicted_price.toFixed(2)} USD</strong>
-              </p>
-              <p className="muted">
-                Band: {summary.prediction_7d5.lower_band.toFixed(2)} - {summary.prediction_7d5.upper_band.toFixed(2)} USD
-              </p>
-              <p className="muted">Target: {new Date(summary.prediction_7d5.target_timestamp).toLocaleString()}</p>
-            </>
+          <h2>Live price comparison</h2>
+          <p>
+            Item: <strong>{summary.price_comparison.item_name}</strong>
+          </p>
+          <ul className="list compact price-source-list">
+            {summary.price_comparison.sources.map((source) => (
+              <li key={source.source} className={!source.available ? 'unavailable' : undefined}>
+                <span>{sourceLabels[source.source] ?? source.source}</span>
+                <span>
+                  {source.url && source.available ? (
+                    <a href={source.url} target="_blank" rel="noreferrer">
+                      {formatPrice(source.price, source.currency)}
+                    </a>
+                  ) : (
+                    formatPrice(source.price, source.currency)
+                  )}
+                  {source.available ? <small>Last updated: {new Date(source.last_updated).toLocaleString()}</small> : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {summary.price_comparison.cheapest_source ? (
+            <p>
+              Cheapest available source:{' '}
+              <strong>
+                {summary.price_comparison.cheapest_source.source} at{' '}
+                {formatPrice(summary.price_comparison.cheapest_source.price, summary.price_comparison.cheapest_source.currency)}
+              </strong>
+            </p>
           ) : (
-            <p className="muted">Not enough Buff163 history yet.</p>
+            <p className="muted">No live price available</p>
           )}
+          <p className="muted">
+            Difference between available sources:{' '}
+            {summary.price_comparison.percentage_difference !== null
+              ? `${summary.price_comparison.percentage_difference.toFixed(2)}%`
+              : 'No live price available'}
+          </p>
         </article>
       </div>
 
@@ -176,21 +212,33 @@ export function SkinDetailsPage() {
 
         <article className="card">
           <h2>Current prices</h2>
-          <p>
-            Buff163 baseline: <strong>{summary.baseline_price?.toFixed(2) ?? 'n/a'} USD</strong>
-          </p>
+          <p>Buff163 baseline: {summary.baseline_price ? <strong>{summary.baseline_price.toFixed(2)} USD</strong> : 'No live price available'}</p>
           <ul className="list compact">
-            {summary.latest_prices.map((price) => (
-              <li key={price.market}>
-                <span>{price.market}</span>
-                <span>
-                  {price.price.toFixed(2)} {price.currency}
-                  {price.spread_vs_buff163_pct !== null
-                    ? ` (${price.spread_vs_buff163_pct >= 0 ? '+' : ''}${price.spread_vs_buff163_pct.toFixed(2)}%)`
-                    : ''}
-                </span>
+            {summary.latest_prices.length > 0 ? (
+              summary.latest_prices.map((price) => (
+                <li key={price.market}>
+                  <span>{price.market}</span>
+                  <span>
+                    {price.url ? (
+                      <a href={price.url} target="_blank" rel="noreferrer">
+                        {price.price.toFixed(2)} {price.currency}
+                      </a>
+                    ) : (
+                      `${price.price.toFixed(2)} ${price.currency}`
+                    )}
+                    {price.spread_vs_buff163_pct !== null
+                      ? ` (${price.spread_vs_buff163_pct >= 0 ? '+' : ''}${price.spread_vs_buff163_pct.toFixed(2)}%)`
+                      : ''}
+                    <small>Last updated: {new Date(price.timestamp).toLocaleString()}</small>
+                  </span>
+                </li>
+              ))
+            ) : (
+              <li>
+                <span>All sources</span>
+                <span>No live price available</span>
               </li>
-            ))}
+            )}
           </ul>
         </article>
       </div>

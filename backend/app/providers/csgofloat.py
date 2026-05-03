@@ -9,10 +9,11 @@ from urllib.error import HTTPError
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
-from app.domain.models import ProviderListing
+from app.domain.models import ProviderListing, ProviderPrice
 from app.providers.common import StubOrMockProvider
 from app.providers.mock import MockMarketEngine
 from app.services.csgoskins_price import CSGOSkinsPriceService
+from app.services.market_hash_names import market_hash_candidates
 from app.storage.db import SkinTable
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,99 @@ class CSGOFloatProvider(StubOrMockProvider):
     def auth_configured(self) -> bool:
         return bool(self.api_key or self.session_cookie)
 
+    async def fetch_prices(self, skins: Sequence[SkinTable]) -> list[ProviderPrice]:
+        if self.use_mock:
+            return await super().fetch_prices(skins)
+
+        now = datetime.now(timezone.utc)
+        if not self.listings_api_configured:
+            self.last_error = "CSFloat listings API URL is not configured."
+            self.last_price_error = self.last_error
+            return []
+
+        if not self.auth_configured:
+            self.last_error = (
+                "CSFloat auth required. Set CSGOFLOAT_API_KEY or CSFLOAT_SESSION_COOKIE."
+            )
+            self.last_price_error = self.last_error
+            self._cooldown_until = None
+            return []
+
+        if self._cooldown_until and now < self._cooldown_until:
+            self.last_error = f"CSFloat cooldown active until {self._cooldown_until.isoformat()}."
+            self.last_price_error = self.last_error
+            return []
+
+        rows: list[ProviderPrice] = []
+        for skin in skins:
+            listing = None
+            market_hash_name = skin.name
+            for candidate in market_hash_candidates(skin.name):
+                try:
+                    request_url = self._build_price_lookup_url(candidate)
+                    payload = await asyncio.to_thread(self._fetch_json, request_url)
+                    self._cooldown_until = None
+                    self.last_error = None
+                    self.last_price_error = None
+                except HTTPError as exc:
+                    body = ""
+                    try:
+                        body = exc.read().decode("utf-8", "ignore")
+                    except Exception:
+                        body = ""
+                    self.last_error = f"HTTP {exc.code}: {body[:180] or 'request failed'}"
+                    if exc.code == 403:
+                        self._cooldown_until = now + timedelta(minutes=10)
+                    elif exc.code == 429:
+                        self._cooldown_until = now + timedelta(minutes=5)
+                    self.last_price_error = self.last_error
+                    logger.warning("CSFloat price request failed: %s", self.last_error)
+                    break
+                except Exception:
+                    self.last_error = "Request failed unexpectedly."
+                    self.last_price_error = self.last_error
+                    logger.warning("CSFloat price request failed", exc_info=True)
+                    break
+
+                listing = next(
+                    (
+                        item
+                        for item in _iter_listing_items(payload)
+                        if _resolve_skin_name(item) in (skin.name, candidate)
+                        and _string_or_none(item, "state") in (None, "listed")
+                    ),
+                    None,
+                )
+                if listing is not None:
+                    market_hash_name = candidate
+                    break
+            if listing is None:
+                continue
+
+            price_cents = _float_or_none(listing, "price")
+            listing_id = _string_or_none(listing, "id")
+            if price_cents is None or price_cents <= 0:
+                continue
+
+            rows.append(
+                ProviderPrice(
+                    market="csgofloat",
+                    skin_name=skin.name,
+                    price=round(price_cents / 100.0, 2),
+                    currency="USD",
+                    timestamp=datetime.now(timezone.utc),
+                    metadata={
+                        "mode": "official_api",
+                        "is_simulated": False,
+                        "price_source": "csfloat",
+                        "item_url": f"https://csfloat.com/item/{listing_id}" if listing_id else None,
+                        "market_hash_name": market_hash_name,
+                    },
+                )
+            )
+
+        return rows
+
     async def fetch_new_listings(
         self,
         skins: Sequence[SkinTable],
@@ -79,9 +173,10 @@ class CSGOFloatProvider(StubOrMockProvider):
 
         if not self.auth_configured:
             self.last_error = (
-                "CSFloat auth not configured. Set CSGOFLOAT_API_KEY or CSFLOAT_SESSION_COOKIE."
+                "CSFloat auth required. Set CSGOFLOAT_API_KEY or CSFLOAT_SESSION_COOKIE."
             )
             self.last_listing_error = self.last_error
+            self._cooldown_until = None
             if not self._logged_auth_missing:
                 logger.warning("CSFloat listings disabled: %s", self.last_error)
                 self._logged_auth_missing = True
@@ -154,7 +249,7 @@ class CSGOFloatProvider(StubOrMockProvider):
                     metadata={
                         "mode": "official_api",
                         "is_simulated": False,
-                        "price_source": "csfloat_api",
+                        "price_source": "csfloat",
                         "image_url": image_url,
                         "item_url": f"https://csfloat.com/item/{listing_id}",
                         "float_value": float_value,
@@ -171,6 +266,16 @@ class CSGOFloatProvider(StubOrMockProvider):
         query_pairs = dict(parse_qsl(parsed.query, keep_blank_values=True))
         query_pairs.setdefault("sort_by", self.listings_sort)
         query_pairs.setdefault("limit", str(self.listings_limit))
+        rebuilt = parsed._replace(query=urlencode(query_pairs))
+        return urlunparse(rebuilt)
+
+    def _build_price_lookup_url(self, market_hash_name: str) -> str:
+        parsed = urlparse(self.listings_api_url)
+        query_pairs = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        query_pairs["sort_by"] = "lowest_price"
+        query_pairs["limit"] = "1"
+        query_pairs["type"] = "buy_now"
+        query_pairs["market_hash_name"] = market_hash_name
         rebuilt = parsed._replace(query=urlencode(query_pairs))
         return urlunparse(rebuilt)
 

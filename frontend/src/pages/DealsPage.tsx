@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import { fetchDeals, fetchHealth } from '../api/client'
+import { fetchDeals, fetchHealth, fetchProviderStatus } from '../api/client'
 import { useRealtime } from '../components/useRealtime'
 import type { DealItem, RealtimeEvent } from '../types'
 
@@ -12,17 +12,24 @@ export function DealsPage() {
   const [loading, setLoading] = useState(false)
   const [appliedFilters, setAppliedFilters] = useState({ market: 'csgofloat', minDiscount: 5, sinceHours: 24 })
   const [csfloatConfigured, setCsfloatConfigured] = useState(true)
+  const [csfloatAuthConfigured, setCsfloatAuthConfigured] = useState(true)
   const [csfloatError, setCsfloatError] = useState<string | null>(null)
+  const [csfloatCooldownUntil, setCsfloatCooldownUntil] = useState<string | null>(null)
   const { subscribe } = useRealtime()
 
   const refreshHealth = useCallback(async () => {
     try {
-      const value = await fetchHealth()
-      setCsfloatConfigured(value.csfloat_listings_api_configured)
-      setCsfloatError(value.csfloat_last_error)
+      const [health, status] = await Promise.all([fetchHealth(), fetchProviderStatus()])
+      const csfloat = status.providers.find((provider) => provider.name === 'csgofloat')
+      setCsfloatConfigured(health.csfloat_listings_api_configured)
+      setCsfloatAuthConfigured(health.csfloat_auth_configured)
+      setCsfloatError(csfloat?.last_listing_error ?? csfloat?.last_price_error ?? health.csfloat_last_error)
+      setCsfloatCooldownUntil(csfloat?.cooldown_until ?? null)
     } catch {
       setCsfloatConfigured(false)
+      setCsfloatAuthConfigured(false)
       setCsfloatError(null)
+      setCsfloatCooldownUntil(null)
     }
   }, [])
 
@@ -104,6 +111,16 @@ export function DealsPage() {
       </div>
 
       {loading ? <p className="muted">Loading deals...</p> : null}
+      {appliedFilters.market.trim().toLowerCase() === 'csgofloat' && !csfloatAuthConfigured ? (
+        <p className="notice">
+          CSFloat listings require authentication. Set <code>CSGOFLOAT_API_KEY</code> or <code>CSFLOAT_SESSION_COOKIE</code> in <code>backend/.env</code>, then restart the backend.
+        </p>
+      ) : null}
+      {appliedFilters.market.trim().toLowerCase() === 'csgofloat' && csfloatCooldownUntil ? (
+        <p className="notice">
+          CSFloat is cooling down until {new Date(csfloatCooldownUntil).toLocaleString()}. This usually means CSFloat returned a rate-limit or auth error, not that listings do not exist.
+        </p>
+      ) : null}
       <ul className="list">
         {deals.map((deal) => (
           <li key={deal.listing_id} className={deal.extreme_underpricing ? 'item extreme' : 'item'}>
@@ -142,6 +159,9 @@ export function DealsPage() {
           No real deals found for this filter.
           {appliedFilters.market.trim().toLowerCase() === 'csgofloat' && !csfloatConfigured
             ? ' CSFloat listings API is not configured, so no real CSFloat listings can be shown.'
+            : ''}
+          {appliedFilters.market.trim().toLowerCase() === 'csgofloat' && csfloatConfigured && !csfloatAuthConfigured
+            ? ' CSFloat auth is not configured, so protected CSFloat listings cannot be fetched.'
             : ''}
           {appliedFilters.market.trim().toLowerCase() === 'csgofloat' && csfloatError
             ? ` CSFloat error: ${csfloatError}`

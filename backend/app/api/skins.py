@@ -8,6 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_container, get_session
 from app.core.container import AppContainer
 from app.domain.models import MetricBundle, Skin, SkinSearchResponse, SkinSummary, SkinVariantsResponse, WearOption
+from app.services.price_service import (
+    LIVE_COMPARISON_SOURCES,
+    PriceService,
+    canonical_source,
+    is_fresh_live_observation,
+    is_valid_price_value,
+    validate_provider_price,
+)
 from app.services.prediction import predict_price_7d5
 from app.services.pricing_metrics import rolling_mean, safe_mean, spread_pct
 from app.services.wear import WEAR_ORDER, split_wear_suffix
@@ -47,6 +55,15 @@ def _with_image(
         created_at=skin.created_at,
         image_url=image_url,
     )
+
+
+def _expected_source_currency(source: str, container: AppContainer) -> str:
+    source_key = canonical_source(source)
+    if source_key == "steam":
+        return container.settings.steam_currency.upper()
+    if source_key == "skinport":
+        return container.settings.skinport_currency.upper()
+    return "USD"
 
 
 @router.get("/search", response_model=SkinSearchResponse)
@@ -165,6 +182,47 @@ async def skin_summary(
 
     latest_prices = await price_repo.get_latest_per_market(skin_id)
     latest_metadata = await price_repo.get_latest_metadata(skin_id)
+
+    fresh_sources = {
+        canonical_source(item.market)
+        for item in latest_prices
+        if is_valid_price_value(item.price)
+        and is_fresh_live_observation(item.timestamp)
+        and item.currency.upper() == _expected_source_currency(item.market, container)
+    }
+    missing_sources = set(LIVE_COMPARISON_SOURCES) - fresh_sources
+    if missing_sources:
+        snapshot_rows: list[dict] = []
+        for provider in container.providers:
+            if canonical_source(provider.name) not in missing_sources:
+                continue
+            try:
+                provider_prices = await provider.fetch_prices([skin])
+                provider.mark_price_refresh()
+            except Exception as exc:
+                provider.last_price_error = f"{type(exc).__name__}: {exc}"
+                continue
+
+            for raw_price in provider_prices:
+                price = validate_provider_price(raw_price)
+                if price is None or canonical_source(price.market) not in missing_sources:
+                    continue
+                snapshot_rows.append(
+                    {
+                        "skin_id": skin.id,
+                        "market": price.market,
+                        "price": price.price,
+                        "currency": price.currency,
+                        "observed_at": price.timestamp,
+                        "metadata": price.metadata,
+                    }
+                )
+
+        if snapshot_rows:
+            await price_repo.add_snapshots(snapshot_rows)
+            latest_prices = await price_repo.get_latest_per_market(skin_id)
+            latest_metadata = await price_repo.get_latest_metadata(skin_id)
+
     baseline = next((item.price for item in latest_prices if item.market == "buff163"), None)
 
     metrics: dict[str, MetricBundle] = {}
@@ -184,7 +242,15 @@ async def skin_summary(
         )
 
     for item in latest_prices:
+        item.market = canonical_source(item.market)
         item.spread_vs_buff163_pct = spread_pct(item.price, baseline)
+
+    latest_prices = [
+        item
+        for item in latest_prices
+        if is_valid_price_value(item.price) and item.timestamp is not None
+    ]
+    price_comparison = PriceService().build_comparison(item_name=skin.name, latest_prices=latest_prices)
 
     buff_points = await price_repo.get_market_points(
         skin_id=skin_id,
@@ -208,6 +274,7 @@ async def skin_summary(
         baseline_price=baseline,
         image_url=image_url,
         latest_prices=latest_prices,
+        price_comparison=price_comparison,
         metrics_by_market=metrics,
         prediction_7d5=prediction,
     )

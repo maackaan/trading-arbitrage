@@ -31,13 +31,16 @@ class Settings(BaseSettings):
     search_catalog_timeout_seconds: int = 8
     search_catalog_fetch_wears: bool = True
     catalog_image_refresh_ttl_seconds: int = 21600
-    csgoskins_price_fallback_enabled: bool = True
+    csgoskins_price_fallback_enabled: bool = False
     csgoskins_price_ttl_seconds: int = 900
     csgoskins_price_resolve_ttl_seconds: int = 21600
     catalog_image_cache_path: str = "./skin_images_cache.json"
     catalog_prefetch_images: bool = True
 
     provider_rate_limits: str = "steam:60,buff_market:60,dmarket:60,skinbaron:60,buff163:60,csgofloat:60,skinsmonkey:60,skinport:300,csmoney:60"
+    steam_country: str = "SE"
+    steam_currency_code: int = 3
+    steam_currency: str = "EUR"
 
     steam_api_key: str = ""
     buff_market_api_key: str = ""
@@ -55,7 +58,7 @@ class Settings(BaseSettings):
     skinport_items_api_url: str = "https://api.skinport.com/v1/items"
     skinport_api_timeout_seconds: int = 20
     skinport_app_id: int = 730
-    skinport_currency: str = "USD"
+    skinport_currency: str = "EUR"
     csmoney_api_key: str = ""
     csmoney_listings_api_url: str = ""
     csmoney_api_timeout_seconds: int = 10
